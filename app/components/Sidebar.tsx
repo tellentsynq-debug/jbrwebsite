@@ -4,7 +4,7 @@ import React from "react";
 import { motion, AnimatePresence, cubicBezier, type Variants } from "framer-motion";
 import { 
   Users, LayoutDashboard, Link as LinkIcon, UserCheck, 
-  UserCog, Settings, BarChart3, ChevronLeft, Menu, Warehouse
+  UserCog, Settings, BarChart3, ChevronLeft, Menu, Warehouse, Briefcase
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -40,7 +40,7 @@ const SIDEBAR_MENU = [
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
       { id: "campaigns", label: "Campaign Link", icon: LinkIcon, path: "/campaigns" },
-      { id: "employees", label: "Employees", icon: Users, path: "/employees" },
+      { id: "employees", label: "Contractor", icon: Users, path: "/employees" },
       { id: "shortlisted", label: "Shortlisted", icon: UserCheck, path: "/shortlisted" },
     ]
   },
@@ -50,6 +50,7 @@ const SIDEBAR_MENU = [
       { id: "user_mgmt", label: "User Management", icon: UserCog, path: "/users" },
       { id: "master_mgmt", label: "Master Management", icon: Settings, path: "/master" },
       { id: "warehouses", label: "Warehouses", icon: Warehouse, path: "/warehouse" },
+      { id: "jobs", label: "Jobs", icon: Briefcase, path: "/jobs" },
     ]
   },
   {
@@ -179,4 +180,3 @@ export default function Sidebar({ isCollapsed, setCollapsed, activeTab, setActiv
     </motion.aside>
   );
 }
-

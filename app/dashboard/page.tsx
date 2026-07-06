@@ -388,10 +388,10 @@ export default function JBRLayout() {
           setSummaryData(summaryJson.summary || {});
           setDashboardData(dashboardJson || {});
         } else {
-          console.error("API response was not OK", summaryRes.status, dashboardRes.status);
+          
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
+        
       }
     };
 

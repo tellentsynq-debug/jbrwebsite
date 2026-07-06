@@ -53,7 +53,7 @@ const GLOBAL_CSS = `
   ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
   .clean-card { background: ${C.surface}; border: 1px solid ${C.border}; border-radius: 16px; box-shadow: 0 1px 3px ${C.shadow}, 0 4px 16px ${C.shadow}; }
   .table-container { width: 100%; overflow-x: auto; }
-  .table-min-width { min-width: 1400px; }
+  .table-min-width { min-width: 1100px; }
   select { appearance: none; background-color: transparent; cursor: pointer; }
   select option { background-color: ${C.surface}; color: ${C.textHeading}; }
   .modal-overlay { position: fixed; inset: 0; background: ${C.overlayBg}; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(2px); }
@@ -68,6 +68,8 @@ const GLOBAL_CSS = `
   .group-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid ${C.border}; border-radius: 10px; cursor: pointer; transition: all 0.2s; background: ${C.surface}; }
   .group-item:hover { border-color: ${C.red}; background: ${C.redActiveBg}; }
   .group-item.selected { border-color: ${C.red}; background: ${C.redActiveBg}; }
+  .view-more-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: ${C.redActiveBg}; border: 1px solid ${C.red}; border-radius: 8px; color: ${C.red}; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+  .view-more-btn:hover { background: ${C.red}; color: #fff; }
 `;
 
 /* ─── API CONFIG ──────────────────────────────────────────────── */
@@ -212,7 +214,7 @@ function TopNav() {
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
         <span style={{ fontSize: "12px", letterSpacing: "1px", textTransform: "uppercase", color: C.textHint, fontWeight: 600 }}>Main</span>
         <span style={{ color: C.textMuted }}>/</span>
-        <span style={{ fontSize: "12px", letterSpacing: "1px", textTransform: "uppercase", color: C.textHeading, fontWeight: 600 }}>Employees</span>
+        <span style={{ fontSize: "12px", letterSpacing: "1px", textTransform: "uppercase", color: C.textHeading, fontWeight: 600 }}>Contractor</span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
         <span style={{ fontSize: "13px", color: C.textMuted }}>
@@ -998,7 +1000,14 @@ export default function EmployeesPage() {
   const startIndex = totalFiltered > 0 ? (currentPage - 1) * pageSize + 1 : 0;
   const endIndex = Math.min(currentPage * pageSize, totalFiltered);
 
-  const tableGridTemplate = "40px 1.3fr 1.8fr 1.2fr 0.8fr 1.2fr 1.2fr 0.9fr 1fr 1.6fr 120px";
+  /*
+   * Row now shows columns only up to "Registered" — Documents and Actions
+   * (Resume/License download, Chat, Verify, Edit, Delete) have moved to the
+   * employee detail page at /employees/[id]. A single "View More" column
+   * replaces both, keeping the row compact and avoiding horizontal scroll
+   * on most screens.
+   */
+  const tableGridTemplate = "40px 1.3fr 1.8fr 1.2fr 0.8fr 1.2fr 1.2fr 0.9fr 1fr 150px";
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -1030,7 +1039,7 @@ export default function EmployeesPage() {
             {/* Header */}
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
               <h1 style={{ display: "flex", alignItems: "center", gap: "12px", fontFamily: "'Cormorant Garamond', serif", fontSize: "42px", fontWeight: 600, color: C.textHeading, marginBottom: "8px", letterSpacing: "-0.5px" }}>
-                <Users size={32} color={C.red} strokeWidth={2} /> {selectedGroup ? selectedGroup.name : "Employee Management"}
+                <Users size={32} color={C.red} strokeWidth={2} /> {selectedGroup ? selectedGroup.name : "Contractor Management"}
               </h1>
               <p style={{ fontSize: "15px", color: C.textMuted }}>
                 {selectedGroup
@@ -1141,7 +1150,7 @@ export default function EmployeesPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "16px", marginBottom: "20px" }}>
                   <div>
                     <h3 style={{ fontSize: "20px", fontWeight: 600, color: C.textHeading, display: "flex", alignItems: "center", gap: "8px" }}>
-                      {selectedGroup ? selectedGroup.name : "Employees"} <span style={{ color: C.redBright }}>({totalFiltered})</span>
+                      {selectedGroup ? selectedGroup.name : "Contractor"} <span style={{ color: C.redBright }}>({totalFiltered})</span>
                     </h3>
                     <p style={{ fontSize: "13px", color: C.textMuted, marginTop: "4px" }}>
                       {loading
@@ -1214,7 +1223,7 @@ export default function EmployeesPage() {
                     <button onClick={toggleAll} style={{ background: "none", border: "none", color: C.textHint, cursor: "pointer", padding: 0, display: "flex" }}>
                       {visibleEmployees.length > 0 && visibleEmployees.every(e => selectedIds.includes(e.id)) ? <CheckSquare size={16} color={C.red} /> : <Square size={16} />}
                     </button>
-                    {["Name", "Email", "Phone", "Gender", "Job Category", "Location", "Status", "Registered", "Documents", "Actions"].map((h, i) => (
+                    {["Name", "Email", "Phone", "Gender", "Job Category", "Location", "Status", "Registered", ""].map((h, i) => (
                       <span key={i} style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px", color: C.textHint, fontWeight: 600 }}>{h}</span>
                     ))}
                   </div>
@@ -1241,7 +1250,6 @@ export default function EmployeesPage() {
                       {visibleEmployees.map((emp, idx) => {
                         const isSelected = selectedIds.includes(emp.id);
                         const badge = getVerificationBadge(emp.verification_status);
-                        const isChatLoading = chatSessionLoadingId === emp.id;
                         const fullName = `${emp.first_name || ""} ${emp.last_name || ""}`.trim();
                         return (
                           <motion.div key={emp.id} variants={itemVars}
@@ -1252,7 +1260,12 @@ export default function EmployeesPage() {
                               {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                             </button>
 
-                            <div style={{ fontSize: "14px", fontWeight: 600, color: C.textHeading, lineHeight: 1.4 }}>
+                            <div
+                              onClick={() => router.push(`/employees/${emp.id}`)}
+                              style={{ fontSize: "14px", fontWeight: 600, color: C.textHeading, lineHeight: 1.4, cursor: "pointer" }}
+                              onMouseEnter={e => (e.currentTarget.style.color = C.red)}
+                              onMouseLeave={e => (e.currentTarget.style.color = C.textHeading)}
+                            >
                               {fullName ? (
                                 <>
                                   <div>{emp.first_name}</div>
@@ -1283,62 +1296,15 @@ export default function EmployeesPage() {
                               <Calendar size={14} /> {formatDate(emp.created_at)}
                             </div>
 
-                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                              {emp.resume_url && (
-                                <a href={emp.resume_url} target="_blank" rel="noreferrer">
-                                  <motion.button whileHover={{ backgroundColor: C.redActiveBg, borderColor: C.red, color: C.red }}
-                                    style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: "6px", color: C.textLabel, fontSize: "12px", fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}>
-                                    <Download size={14} /> Resume
-                                  </motion.button>
-                                </a>
-                              )}
-                              {emp.license_required && (
-                                <motion.button whileHover={{ backgroundColor: C.redActiveBg, borderColor: C.red, color: C.red }}
-                                  style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: "6px", color: C.textLabel, fontSize: "12px", fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}>
-                                  <Download size={14} /> License
-                                </motion.button>
-                              )}
-                            </div>
-
-                            {/* Actions */}
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            {/* View More — single entry point to full employee detail page */}
+                            <div>
                               <motion.button
-                                whileHover={!isChatLoading ? { scale: 1.1, backgroundColor: "rgba(59,130,246,0.08)", color: "#3B82F6", borderColor: "#3B82F6" } : {}}
-                                whileTap={!isChatLoading ? { scale: 0.9 } : {}}
-                                onClick={() => openEmployeeChat(emp)}
-                                disabled={isChatLoading}
-                                title="Open Chat"
-                                style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: "6px", color: C.textHint, cursor: isChatLoading ? "not-allowed" : "pointer", padding: "8px", display: "flex", opacity: isChatLoading ? 0.6 : 1, transition: "all 0.2s" }}>
-                                {isChatLoading ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <MessageSquare size={15} />}
-                              </motion.button>
-
-                              {emp.verification_status !== "verified" && (
-                                <motion.button
-                                  whileHover={{ scale: 1.1, backgroundColor: C.successBg, color: C.successText, borderColor: C.successText }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => verifyEmployee(emp.id)}
-                                  title="Verify"
-                                  style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: "6px", color: C.textHint, cursor: "pointer", padding: "8px", display: "flex", transition: "all 0.2s" }}>
-                                  <CheckCheck size={15} />
-                                </motion.button>
-                              )}
-
-                              <motion.button
-                                whileHover={{ scale: 1.1, backgroundColor: C.redActiveBg, color: C.red, borderColor: C.red }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => setEditTarget(emp)}
-                                title="Edit"
-                                style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: "6px", color: C.textHint, cursor: "pointer", padding: "8px", display: "flex", transition: "all 0.2s" }}>
-                                <Edit2 size={15} />
-                              </motion.button>
-
-                              <motion.button
-                                whileHover={{ scale: 1.1, backgroundColor: C.redActiveBg, color: C.redBright, borderColor: C.redBright }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => setDeleteTarget(emp)}
-                                title="Delete"
-                                style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: "6px", color: C.textHint, cursor: "pointer", padding: "8px", display: "flex", transition: "all 0.2s" }}>
-                                <Trash2 size={15} />
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
+                                className="view-more-btn"
+                                onClick={() => router.push(`/employees/${emp.id}`)}
+                              >
+                                View More <ChevronRight size={14} />
                               </motion.button>
                             </div>
 
@@ -1399,6 +1365,3 @@ export default function EmployeesPage() {
     </>
   );
 }
-
-
-
