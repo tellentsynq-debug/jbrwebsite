@@ -6,7 +6,8 @@ import {
   LogOut, Search, ChevronDown, CheckCircle, MessageCircle, Users,
   Trash2, Eye, UserCheck, ChevronLeft, ChevronRight, Square,
   CheckSquare, Calendar, Loader2, X, AlertTriangle, CheckCheck,
-  FileSpreadsheet, Send, Paperclip, FileText, Image as ImageIcon, Mic
+  FileSpreadsheet, Send, Paperclip, FileText, Image as ImageIcon, Mic,
+  Briefcase, DollarSign, MapPin
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Sidebar from "../components/Sidebar";
@@ -58,6 +59,10 @@ const GLOBAL_CSS = `
   select option { background-color: ${C.surface}; color: ${C.textHeading}; }
   .modal-overlay { position: fixed; inset: 0; background: ${C.overlayBg}; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(2px); }
   .modal-box { background: ${C.surface}; border-radius: 16px; padding: 32px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-box.wide { max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  .group-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid ${C.border}; border-radius: 10px; cursor: pointer; transition: all 0.2s; background: ${C.surface}; }
+  .group-item:hover { border-color: ${C.red}; background: ${C.redActiveBg}; }
+  .group-item.selected { border-color: ${C.red}; background: ${C.redActiveBg}; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 `;
 
@@ -117,6 +122,27 @@ interface GroupMember {
   candidates: Candidate;
 }
 
+/* Job posting that candidates can be assigned to via /api/jobs/assign */
+interface JobPosting {
+  id: string;
+  campaign_name: string;
+  role_title: string;
+  company_or_warehouse: string;
+  hourly_rate: number;
+  start_at: string;
+  end_at: string;
+  full_address: string;
+  is_active: boolean;
+  created_at: string;
+  warehouse?: {
+    id: string;
+    customer_name: string;
+    warehouse_name: string;
+    warehouse_address: string;
+    supervisor_manager: string;
+  } | null;
+}
+
 interface Toast {
   type: "success" | "error" | "info";
   message: string;
@@ -127,6 +153,12 @@ const formatDate = (d: string) => {
   if (!d) return "—";
   const dt = new Date(d);
   return `${dt.getMonth() + 1}/${dt.getDate()}/${dt.getFullYear()}`;
+};
+
+const formatDateTime = (d: string) => {
+  if (!d) return "N/A";
+  const dt = new Date(d);
+  return `${dt.getMonth() + 1}/${dt.getDate()}/${dt.getFullYear()} ${dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 };
 
 const getVerificationBadge = (status?: string) => {
@@ -294,6 +326,213 @@ function RemoveModal({
             )}
             {loading ? "Removing..." : "Remove"}
           </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ─── ASSIGN TO JOB MODAL ────────────────────────────────────── */
+/*
+ * Same pattern/API as the Assign to Job modal on the Employees page:
+ * fetches GET /jobs, lets you multi-select jobs, and posts to
+ * POST /jobs/assign with { job_ids: [...], user_ids: selectedIds }.
+ */
+interface AssignJobModalProps {
+  selectedIds: string[];
+  onClose: () => void;
+  showToast: (t: Toast) => void;
+  onSuccess: () => void;
+}
+
+function AssignJobModal({ selectedIds, onClose, showToast, onSuccess }: AssignJobModalProps) {
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
+  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
+  const [assigning, setAssigning] = useState(false);
+  const [searchJob, setSearchJob] = useState("");
+
+  useEffect(() => {
+    const fetchJobs = async () => {
+      setLoadingJobs(true);
+      try {
+        const res = await fetch(`${BASE_URL}/jobs`, { headers: authHeaders() });
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const json = await res.json();
+        setJobs(json.data || json.jobs || json || []);
+      } catch (err: any) {
+        showToast({ type: "error", message: err.message || "Failed to load jobs." });
+        setJobs([]);
+      } finally {
+        setLoadingJobs(false);
+      }
+    };
+    fetchJobs();
+  }, []);
+
+  const filteredJobs = jobs.filter(j => {
+    const term = searchJob.toLowerCase();
+    const haystack = `${j.campaign_name || ""} ${j.role_title || ""} ${j.warehouse?.warehouse_name || ""} ${j.warehouse?.customer_name || ""}`.toLowerCase();
+    return haystack.includes(term);
+  });
+
+  const toggleJob = (id: string) => {
+    setSelectedJobIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleAssign = async () => {
+    if (!selectedJobIds.length) return;
+    setAssigning(true);
+    try {
+      const res = await fetch(`${BASE_URL}/jobs/assign`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ job_ids: selectedJobIds, user_ids: selectedIds }),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const json = await res.json().catch(() => ({} as any));
+      // Some backend states report HTTP 200 while the assignment failed to
+      // persist — surface that distinction instead of always showing success.
+      if (json && json.assignment_persisted === false) {
+        showToast({
+          type: "info",
+          message: `${selectedIds.length} candidate(s) assigned to ${selectedJobIds.length} job(s), but the assignment may not have been fully saved. Please verify.`,
+        });
+      } else {
+        showToast({
+          type: "success",
+          message: `${selectedIds.length} candidate(s) assigned to ${selectedJobIds.length} job${selectedJobIds.length !== 1 ? "s" : ""} successfully.`,
+        });
+      }
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      showToast({ type: "error", message: err.message || "Failed to assign candidates to job." });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <motion.div
+        className="modal-box wide"
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        initial={{ scale: 0.92, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.92, opacity: 0 }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+          <div>
+            <h2 style={{ fontSize: "22px", fontWeight: 700, color: C.textHeading, fontFamily: "'Cormorant Garamond', serif", display: "flex", alignItems: "center", gap: "10px" }}>
+              <Briefcase size={22} color={C.red} /> Assign to Job
+            </h2>
+            <p style={{ fontSize: "13px", color: C.textMuted, marginTop: "6px" }}>
+              Assigning <strong style={{ color: C.textHeading }}>{selectedIds.length}</strong> candidate{selectedIds.length !== 1 ? "s" : ""} to one or more jobs
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: "4px" }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "8px 16px", borderRadius: "8px", background: C.redActiveBg, border: `1px solid ${C.red}` }}>
+            <CheckSquare size={15} color={C.red} />
+            <span style={{ fontSize: "13px", fontWeight: 600, color: C.red }}>
+              {selectedIds.length} candidate{selectedIds.length !== 1 ? "s" : ""} selected
+            </span>
+          </div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "8px 16px", borderRadius: "8px", background: C.pendingBg, border: `1px solid ${C.pendingBorder}` }}>
+            <Briefcase size={15} color={C.pendingText} />
+            <span style={{ fontSize: "13px", fontWeight: 600, color: C.pendingText }}>
+              {selectedJobIds.length} job{selectedJobIds.length !== 1 ? "s" : ""} selected
+            </span>
+          </div>
+        </div>
+
+        <div style={{ position: "relative", marginBottom: "16px" }}>
+          <Search size={15} color={C.textHint} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
+          <input
+            type="text"
+            placeholder="Search jobs by campaign, role, or warehouse..."
+            value={searchJob}
+            onChange={e => setSearchJob(e.target.value)}
+            style={{ width: "100%", background: C.inputBg, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "10px 16px 10px 38px", color: C.textBody, fontSize: "14px", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+            onFocus={e => (e.target.style.borderColor = C.red)}
+            onBlur={e => (e.target.style.borderColor = C.border)}
+          />
+        </div>
+
+        <div style={{ maxHeight: "360px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", marginBottom: "24px" }}>
+          {loadingJobs ? (
+            <div style={{ padding: "40px", textAlign: "center", color: C.textMuted, display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
+              <Loader2 size={18} style={{ animation: "spin 1s linear infinite", color: C.red }} />
+              <span>Loading jobs…</span>
+            </div>
+          ) : filteredJobs.length === 0 ? (
+            <div style={{ padding: "40px", textAlign: "center", color: C.textMuted, fontSize: "14px" }}>
+              {searchJob ? "No jobs match your search." : "No jobs found."}
+            </div>
+          ) : (
+            filteredJobs.map(job => {
+              const isSelected = selectedJobIds.includes(job.id);
+              return (
+                <div
+                  key={job.id}
+                  className={`group-item${isSelected ? " selected" : ""}`}
+                  onClick={() => toggleJob(job.id)}
+                  style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", borderRadius: "10px", cursor: "pointer", border: `1px solid ${isSelected ? C.red : C.border}`, background: isSelected ? C.redActiveBg : C.surface, transition: "all 0.2s" }}
+                >
+                  <div style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0, marginTop: "2px", border: `2px solid ${isSelected ? C.red : C.borderHover}`, background: isSelected ? C.red : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}>
+                    {isSelected && <div style={{ width: "8px", height: "6px", borderLeft: "2px solid #fff", borderBottom: "2px solid #fff", transform: "rotate(-45deg)", marginTop: "-2px" }} />}
+                  </div>
+                  <div style={{ width: "36px", height: "36px", borderRadius: "8px", flexShrink: 0, background: isSelected ? C.red : C.inputBg, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}>
+                    <Briefcase size={16} color={isSelected ? "#fff" : C.textMuted} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: isSelected ? C.red : C.textHeading, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {job.role_title || "Untitled Role"} — {job.campaign_name || "Untitled Campaign"}
+                    </div>
+                    <div style={{ fontSize: "12px", color: C.textMuted, marginTop: "3px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                      {job.warehouse?.warehouse_name && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                          <MapPin size={11} /> {job.warehouse.warehouse_name}
+                        </span>
+                      )}
+                      {typeof job.hourly_rate === "number" && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                          <DollarSign size={11} /> {job.hourly_rate}/hr
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "11px", color: C.textHint, marginTop: "3px" }}>
+                      {formatDateTime(job.start_at)} – {formatDateTime(job.end_at)}
+                    </div>
+                  </div>
+                  {!job.is_active && (
+                    <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", color: C.textHint, background: C.inputBg, border: `1px solid ${C.border}`, borderRadius: "4px", padding: "3px 6px", flexShrink: 0 }}>
+                      Inactive
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "10px 20px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: "8px", color: C.textLabel, fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
+            Cancel
+          </button>
+          <motion.button
+            whileHover={{ opacity: selectedJobIds.length ? 0.9 : 1 }}
+            whileTap={selectedJobIds.length ? { scale: 0.98 } : {}}
+            onClick={handleAssign}
+            disabled={!selectedJobIds.length || assigning}
+            style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 24px", background: selectedJobIds.length ? C.red : C.inputBg, border: "none", borderRadius: "8px", color: selectedJobIds.length ? "#fff" : C.textHint, fontSize: "14px", fontWeight: 600, cursor: selectedJobIds.length && !assigning ? "pointer" : "not-allowed", opacity: assigning ? 0.7 : 1, transition: "all 0.2s" }}>
+            {assigning ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Assigning…</> : <><Briefcase size={16} /> Assign to Job{selectedJobIds.length !== 1 ? "s" : ""}</>}
+          </motion.button>
         </div>
       </motion.div>
     </div>
@@ -812,6 +1051,9 @@ export default function ShortlistedPage() {
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
   const [isSendingMessages, setIsSendingMessages] = useState(false);
 
+  /* ── Assign to Job Modal ── */
+  const [showAssignJobModal, setShowAssignJobModal] = useState(false);
+
   /* ── Individual Chat Loading State ── */
   const [openingChatId, setOpeningChatId] = useState<string | null>(null);
 
@@ -1219,6 +1461,9 @@ export default function ShortlistedPage() {
       showToast({ type: "error", message: "Failed to send messages. Please try again." });
     }
   };
+
+  /* ─── ASSIGN TO JOB SUCCESS ── */
+  const handleAssignJobSuccess = () => setSelectedIds([]);
 
   /* ─── EXCEL DOWNLOAD ── */
   const downloadExcel = async () => {
@@ -1827,6 +2072,35 @@ export default function ShortlistedPage() {
                     <MessageCircle size={16} /> Send Message ({selectedIds.length})
                   </motion.button>
 
+                  {/* Assign to Job — same pattern as the Employees page */}
+                  <motion.button
+                    onClick={() => selectedIds.length > 0 && setShowAssignJobModal(true)}
+                    disabled={!selectedIds.length}
+                    whileHover={
+                      selectedIds.length
+                        ? { backgroundColor: C.redActiveBg, borderColor: C.red, color: C.red }
+                        : {}
+                    }
+                    whileTap={selectedIds.length ? { scale: 0.98 } : {}}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "8px 16px",
+                      background: "transparent",
+                      border: `1px solid ${C.border}`,
+                      borderRadius: "6px",
+                      color: selectedIds.length ? C.textHeading : C.textHint,
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: selectedIds.length ? "pointer" : "not-allowed",
+                      transition: "all 0.2s",
+                      opacity: selectedIds.length ? 1 : 0.5,
+                    }}
+                  >
+                    <Briefcase size={16} /> Assign to Job ({selectedIds.length})
+                  </motion.button>
+
                   <motion.button
                     onClick={bulkRemoveFromGroup}
                     disabled={!selectedIds.length}
@@ -2320,6 +2594,18 @@ export default function ShortlistedPage() {
         )}
       </AnimatePresence>
 
+      {/* Assign to Job Modal */}
+      <AnimatePresence>
+        {showAssignJobModal && (
+          <AssignJobModal
+            selectedIds={selectedIds}
+            onClose={() => setShowAssignJobModal(false)}
+            showToast={showToast}
+            onSuccess={handleAssignJobSuccess}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Toast */}
       <AnimatePresence>
         {toast && <ToastNotification toast={toast} onDismiss={() => setToast(null)} />}
@@ -2327,6 +2613,3 @@ export default function ShortlistedPage() {
     </>
   );
 }
-
-
-

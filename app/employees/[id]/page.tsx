@@ -517,6 +517,8 @@ function ApplicationStatusBadge({ status }: { status?: string }) {
       icon: <Clock size={12} /> },
     rejected: { bg: C.alertBg, border: C.alertBorder, color: C.alertText, label: "Rejected",
       icon: <XCircle size={12} /> },
+    assigned: { bg: C.blueBg, border: C.blueBorder, color: C.blueText, label: "Assigned",
+      icon: <BadgeCheck size={12} /> },
   };
   const key = (status ?? "pending").toLowerCase();
   const s = map[key] ?? { bg: C.inputBg, border: C.border, color: C.textMuted, label: status ?? "Pending", icon: null };
@@ -720,7 +722,8 @@ onDecision: (
 
 const isDecided =
   currentStatus === "approved" ||
-  currentStatus === "rejected";
+  currentStatus === "rejected" ||
+  currentStatus === "assigned";
 
 const handleClick = async (
   status: "approved" | "rejected"
