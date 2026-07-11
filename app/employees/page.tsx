@@ -1250,7 +1250,12 @@ export default function EmployeesPage() {
       return;
     }
     try {
-      const rows = filteredEmployees.map(e => ({
+      const employeesToExport =
+  selectedIds.length > 0
+    ? filteredEmployees.filter(e => selectedIds.includes(e.id))
+    : filteredEmployees;
+
+const rows = employeesToExport.map(e => ({
         "First Name": e.first_name, "Last Name": e.last_name, "Email": e.email,
         "Phone": e.phone_number, "Gender": e.gender, "DOB": e.date_of_birth,
         "City": e.city, "Province": e.province, "Postal Code": e.postal_code,
@@ -1267,7 +1272,10 @@ export default function EmployeesPage() {
       ws["!cols"] = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(k.length + 2, 16) }));
       const fileLabel = selectedGroup ? selectedGroup.name.replace(/\s+/g, "_") : "Employees";
       XLSX.writeFile(wb, `JBR_${fileLabel}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      showToast({ type: "success", message: `Exported ${rows.length} employees to Excel.` });
+     showToast({
+  type: "success",
+  message: `Exported ${employeesToExport.length} employees to Excel.`,
+});
     } catch (err: any) {
       showToast({ type: "error", message: err.message || "Excel export failed." });
     }
