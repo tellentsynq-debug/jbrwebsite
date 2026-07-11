@@ -1480,7 +1480,7 @@ const rows = employeesToExport.map(e => ({
                   <motion.button whileHover={{ backgroundColor: C.redActiveBg, borderColor: C.red, color: C.red }} whileTap={{ scale: 0.98 }}
                     onClick={downloadExcel}
                     style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: "6px", color: C.textLabel, fontSize: "13px", fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
-                    <FileSpreadsheet size={16} /> Download Excel ({totalFiltered})
+                    <FileSpreadsheet size={16} /> Download Excel ({selectedIds.length || totalFiltered})
                   </motion.button>
 
                   <motion.button disabled={!selectedIds.length}
