@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   LogOut, Plus, Search, Edit2, X, Trash2, AlertTriangle,
   MapPin, User, Building2, Check, RefreshCw, Briefcase,
-  CalendarClock, DollarSign, Activity, Eye, EyeOff
+  CalendarClock, DollarSign, Activity, Eye, EyeOff, Users
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import { createPortal } from "react-dom";
@@ -57,7 +57,7 @@ const GLOBAL_CSS = `
     box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06);
   }
   .table-container { width: 100%; overflow-x: auto; }
-  .table-min-width { min-width: 1200px; }
+  .table-min-width { min-width: 1260px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
 
@@ -1068,6 +1068,8 @@ const openPanel = () => {
 
 /* ─── MAIN PAGE ──────────────────────────────────────────────── */
 export default function JobPage() {
+  const router = useRouter();
+
   const [jobs, setJobs]               = useState<JobEntry[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
   const [loadError, setLoadError]     = useState("");
@@ -1121,6 +1123,11 @@ export default function JobPage() {
     } finally {
       setEditLoadingId(null);
     }
+  };
+
+  /* ── Navigate to the applicants screen for this job ── */
+  const handleViewApplicants = (job: JobEntry) => {
+    router.push(`/jobs/${job.id}`);
   };
 
   /* ── Quick active/inactive toggle straight from the table (PATCH /api/jobs/:id) ── */
@@ -1188,7 +1195,7 @@ export default function JobPage() {
   );
 
   // Adjust table layout columns
-  const tableGridTemplate = "1.5fr 1.5fr 1.5fr 1.8fr 0.8fr 0.9fr";
+  const tableGridTemplate = "1.5fr 1.5fr 1.5fr 1.8fr 0.8fr 1fr";
 
   return (
     <>
@@ -1416,6 +1423,16 @@ export default function JobPage() {
 
                             {/* Actions */}
                             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                              <motion.button
+                                onClick={() => handleViewApplicants(j)}
+                                whileHover={{ scale: 1.1, color: C.red }}
+                                whileTap={{ scale: 0.9 }}
+                                title="View applicants"
+                                style={{ background: "transparent", border: "none", color: C.textHint, cursor: "pointer", padding: "7px", borderRadius: "6px", transition: "color 0.2s" }}
+                              >
+                                <Users size={17} />
+                              </motion.button>
+
                               <motion.button
                                 onClick={() => handleEditClick(j)}
                                 disabled={isEditLoadingRow}

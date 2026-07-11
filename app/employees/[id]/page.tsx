@@ -9,7 +9,7 @@ import {
   CheckCircle, Clock, XCircle, AlertTriangle, Loader2, RefreshCw,
   Building2, BadgeCheck, Lock, Eye, EyeOff, MessageSquare,
   CheckCheck, Edit2, Fingerprint, Banknote, IdCard, ChevronRight,
-  X, Save,
+  X, Save, Briefcase as BriefcaseIcon, DollarSign, MapPinned, Check, Ban,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
@@ -261,12 +261,39 @@ const GLOBAL_CSS = `
   .form-label { font-size: 12px; font-weight: 600; color: ${C.textLabel}; text-transform: uppercase; letter-spacing: 0.5px; }
   .form-input { background: ${C.inputBg}; border: 1px solid ${C.border}; border-radius: 8px; padding: 10px 14px; color: ${C.textBody}; font-size: 14px; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; width: 100%; }
   .form-input:focus { border-color: ${C.red}; }
+
+  /* ── Applied Jobs card ── */
+  .job-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 20px;
+    border-radius: 12px;
+    border: 1px solid ${C.border};
+    background: ${C.surface};
+    transition: all 0.2s;
+  }
+  .job-card:hover { border-color: ${C.borderHover}; box-shadow: 0 2px 10px ${C.shadow}; }
+  .job-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: ${C.textMuted};
+    font-weight: 500;
+  }
 `;
 
 /* ─── API ─────────────────────────────────────────────────────── */
 const BASE_URL = "https://jbrstaffingsolutions.com/api";
 const getToken = () =>
   typeof window !== "undefined" ? localStorage.getItem("jbr_token") || "" : "";
+
+interface UserPolicy {
+  name: string;
+  signed_pdf_url: string;
+  uploaded_at: string;
+}
 
 /* ─── TYPES ──────────────────────────────────────────────────── */
 interface BankAccount {
@@ -330,6 +357,47 @@ interface EmployeeDetail {
   sin: SIN | null;
 }
 
+/* Applied Jobs — from GET /jobs/user/:user_id */
+interface AppliedJobWarehouse {
+  id: string;
+  customer_name: string;
+  warehouse_name: string;
+  warehouse_address: string;
+  supervisor_manager: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  privacy_policy_url: string | null;
+  privacy_policy_storage_path: string | null;
+  terms_and_conditions_url: string | null;
+  terms_and_conditions_storage_path: string | null;
+}
+
+interface AppliedJob {
+  id: string;
+  campaign_name: string;
+  role_title: string;
+  company_or_warehouse: string;
+  hourly_rate: number;
+  start_at: string;
+  end_at: string;
+  full_address: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  client_policy_url: string | null;
+  user_id: string | null;
+  max_applicants: number;
+
+  application_status: "pending" | "approved" | "rejected" | string;
+  application_id: string | null;
+
+  terms_and_conditions_url: string | null;
+  warehouse: AppliedJobWarehouse;
+}
+
 /* ─── HELPERS ─────────────────────────────────────────────────── */
 const MONTHS = [
   "January","February","March","April","May","June",
@@ -384,6 +452,17 @@ function fmtDateTime(iso: string | null | undefined) {
   } catch { return iso; }
 }
 
+function fmtTimeRange(startIso: string | null | undefined, endIso: string | null | undefined) {
+  if (!startIso || !endIso) return "—";
+  try {
+    const s = new Date(startIso), e = new Date(endIso);
+    const dateStr = s.toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" });
+    const startTime = s.toLocaleTimeString("en-CA", { hour: "2-digit", minute: "2-digit" });
+    const endTime = e.toLocaleTimeString("en-CA", { hour: "2-digit", minute: "2-digit" });
+    return `${dateStr} · ${startTime} – ${endTime}`;
+  } catch { return "—"; }
+}
+
 function calcAge(dob: string | null | undefined) {
   if (!dob) return null;
   try {
@@ -422,6 +501,25 @@ function VerificationBadge({ status }: { status: string }) {
       icon: <XCircle size={13} /> },
   };
   const s = map[status] ?? { bg: C.inputBg, border: C.border, color: C.textMuted, label: status, icon: null };
+  return (
+    <span className="chip" style={{ background: s.bg, borderColor: s.border, color: s.color }}>
+      {s.icon}{s.label}
+    </span>
+  );
+}
+
+/* ─── APPLICATION STATUS BADGE ──────────────────────────────────── */
+function ApplicationStatusBadge({ status }: { status?: string }) {
+  const map: Record<string, { bg: string; border: string; color: string; label: string; icon: React.ReactNode }> = {
+    approved: { bg: C.successBg, border: C.successBorder, color: C.successText, label: "Approved",
+      icon: <BadgeCheck size={12} /> },
+    pending:  { bg: C.pendingBg, border: C.pendingBorder, color: C.pendingText, label: "Pending",
+      icon: <Clock size={12} /> },
+    rejected: { bg: C.alertBg, border: C.alertBorder, color: C.alertText, label: "Rejected",
+      icon: <XCircle size={12} /> },
+  };
+  const key = (status ?? "pending").toLowerCase();
+  const s = map[key] ?? { bg: C.inputBg, border: C.border, color: C.textMuted, label: status ?? "Pending", icon: null };
   return (
     <span className="chip" style={{ background: s.bg, borderColor: s.border, color: s.color }}>
       {s.icon}{s.label}
@@ -469,11 +567,12 @@ function SkeletonBlock({ h, w }: { h: number; w?: string }) {
 
 /* ─── SECTION TITLE ───────────────────────────────────────────── */
 function SectionTitle({
-  icon, label, accent,
+  icon, label, accent, right,
 }: {
   icon: React.ReactNode;
   label: string;
   accent?: string;
+  right?: React.ReactNode;
 }) {
   return (
     <div className="section-header">
@@ -486,6 +585,7 @@ function SectionTitle({
         {icon}
       </div>
       <span style={{ fontSize: 14, fontWeight: 700, color: C.textHeading, letterSpacing: 0.3 }}>{label}</span>
+      {right && <div style={{ marginLeft: "auto" }}>{right}</div>}
     </div>
   );
 }
@@ -589,6 +689,121 @@ function DocCard({
         ) : (
           <span style={{ fontSize: 12, color: C.textHint, fontStyle: "italic" }}>No file</span>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── APPLIED JOB CARD ───────────────────────────────────────────
+ * One row in the "Applied Jobs" section. Shows the job/campaign info
+ * plus Approve / Reject actions that call:
+ *   PATCH /auth/applications/{jobId}/status
+ *   body: { user_id, status: "approved" | "rejected" }
+ * ────────────────────────────────────────────────────────────── */
+function AppliedJobCard({
+  job,
+  employeeId,
+  policyUrl,
+  onDecision,
+}: {
+  job: AppliedJob;
+  employeeId: string;
+  policyUrl: string | null;
+onDecision: (
+  applicationId: string,
+  status: "approved" | "rejected"
+) => Promise<void>;
+}) {
+  const [actioning, setActioning] = useState<"approved" | "rejected" | null>(null);
+
+  const currentStatus = (job.application_status ?? "pending").toLowerCase();
+
+const isDecided =
+  currentStatus === "approved" ||
+  currentStatus === "rejected";
+
+const handleClick = async (
+  status: "approved" | "rejected"
+) => {
+  if (actioning || !job.application_id) return;
+
+  setActioning(status);
+
+  try {
+    await onDecision(job.application_id, status);
+  } finally {
+    setActioning(null);
+  }
+};
+
+  return (
+    <div className="job-card">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: C.textHeading }}>{job.role_title}</span>
+            <ApplicationStatusBadge status={job.application_status} />
+            {!job.is_active && (
+              <span className="chip" style={{ background: C.inputBg, borderColor: C.border, color: C.textHint }}>Inactive</span>
+            )}
+          </div>
+          <div style={{ fontSize: 13, color: C.textMuted, fontWeight: 500, marginBottom: 10 }}>
+            {job.campaign_name}
+          </div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <span className="job-meta-item">
+              <Building2 size={13} /> {job.warehouse?.warehouse_name ?? "—"}
+            </span>
+            <span className="job-meta-item">
+              <MapPinned size={13} /> {job.full_address || job.warehouse?.warehouse_address || "—"}
+            </span>
+            <span className="job-meta-item">
+              <DollarSign size={13} /> ${job.hourly_rate?.toFixed(2)}/hr
+            </span>
+            <span className="job-meta-item">
+              <Calendar size={13} /> {fmtTimeRange(job.start_at, job.end_at)}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+         {policyUrl && (
+  <a
+    href={policyUrl}
+    target="_blank"
+    rel="noreferrer"
+    className="doc-action-btn"
+  >
+    <ExternalLink size={13} /> Policy
+  </a>
+)}
+          {!isDecided && (
+            <>
+              <button
+                className="action-btn"
+                onClick={() => handleClick("approved")}
+                disabled={!!actioning}
+                style={{ background: C.successText, color: "#fff", opacity: actioning ? 0.7 : 1, padding: "8px 16px", fontSize: 12.5 }}
+              >
+                {actioning === "approved"
+                  ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
+                  : <Check size={13} />}
+                Approve
+              </button>
+              <button
+                className="action-btn"
+                onClick={() => handleClick("rejected")}
+                disabled={!!actioning}
+                style={{ background: C.red, color: "#fff", opacity: actioning ? 0.7 : 1, padding: "8px 16px", fontSize: 12.5 }}
+              >
+                {actioning === "rejected"
+                  ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
+                  : <Ban size={13} />}
+                Reject
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1070,6 +1285,14 @@ export default function EmployeeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Applied jobs
+  const [appliedJobs, setAppliedJobs] = useState<AppliedJob[]>([]);
+  const [appliedJobsLoading, setAppliedJobsLoading] = useState(true);
+  const [appliedJobsError, setAppliedJobsError] = useState<string | null>(null);
+
+  const [userPolicy, setUserPolicy] = useState<UserPolicy | null>(null);
+const [userPolicyLoading, setUserPolicyLoading] = useState(false);
+
   // Chat session
   const [chatLoading, setChatLoading] = useState(false);
 
@@ -1110,7 +1333,156 @@ export default function EmployeeDetailPage() {
     }
   }, [employeeId]);
 
-  useEffect(() => { fetchEmployee(); }, [fetchEmployee]);
+  /* ── Applied Jobs — GET /jobs/user/:user_id ── */
+  const fetchAppliedJobs = useCallback(async () => {
+    if (!employeeId) return;
+    setAppliedJobsLoading(true);
+    setAppliedJobsError(null);
+    try {
+      const res = await fetch(
+        `${BASE_URL}/jobs/user/${encodeURIComponent(employeeId)}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
+        }
+      );
+      if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+      const json = await res.json();
+      setAppliedJobs(json.data || []);
+    } catch (err: any) {
+      setAppliedJobsError(err.message || "Failed to load applied jobs.");
+    } finally {
+      setAppliedJobsLoading(false);
+    }
+  }, [employeeId]);
+
+  /* ── User Policy — GET /jobs/policy/upload?user_id=...
+   * A 404 here just means this employee hasn't uploaded a signed
+   * policy PDF yet — that's an expected, normal state (most employees
+   * won't have one), not an error. Only genuinely unexpected failures
+   * (5xx, network errors) are logged and surfaced.
+   */
+  const fetchUserPolicy = useCallback(async () => {
+    if (!employeeId) return;
+
+    setUserPolicyLoading(true);
+
+    try {
+      const res = await fetch(
+        `${BASE_URL}/jobs/policy/upload?user_id=${encodeURIComponent(employeeId)}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
+        }
+      );
+
+      if (res.status === 404) {
+        // No policy uploaded for this employee yet — normal, not an error.
+        setUserPolicy(null);
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      const json: UserPolicy = await res.json();
+      setUserPolicy(json);
+    } catch (err) {
+      // Only reaches here for genuinely unexpected failures (5xx, network, etc).
+      console.error("Failed to load user policy:", err);
+      setUserPolicy(null);
+    } finally {
+      setUserPolicyLoading(false);
+    }
+  }, [employeeId]);
+
+  useEffect(() => {
+  fetchEmployee();
+}, [fetchEmployee]);
+
+useEffect(() => {
+  fetchAppliedJobs();
+}, [fetchAppliedJobs]);
+
+useEffect(() => {
+  fetchUserPolicy();
+}, [fetchUserPolicy]);
+
+  /* ── Approve / Reject a job application ──
+   * PATCH /auth/applications/{jobId}/status
+   * body: { user_id, status: "approved" | "rejected" }
+   */
+const handleJobDecision = useCallback(
+  async (
+    applicationId: string,
+    status: "approved" | "rejected"
+  ) => {
+    if (!employeeId) return;
+
+    try {
+      const res = await fetch(
+        `${BASE_URL}/auth/applications/${applicationId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify({
+            user_id: employeeId,
+            status,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        let serverMessage = "";
+
+        try {
+          const e = await res.json();
+          serverMessage = e?.message || e?.error || "";
+        } catch {}
+
+        throw new Error(
+          serverMessage || `Error ${res.status}`
+        );
+      }
+
+      setAppliedJobs(prev =>
+        prev.map(job =>
+          job.application_id === applicationId
+            ? {
+                ...job,
+                application_status: status,
+              }
+            : job
+        )
+      );
+
+      showToast({
+        type: "success",
+        message:
+          status === "approved"
+            ? "Application approved successfully."
+            : "Application rejected successfully.",
+      });
+    } catch (err: any) {
+      showToast({
+        type: "error",
+        message:
+          err.message ||
+          "Failed to update application status.",
+      });
+    }
+  },
+  [employeeId, showToast]
+);
 
   /* ── Verify ── */
   const handleVerify = async () => {
@@ -1361,6 +1733,61 @@ export default function EmployeeDetailPage() {
                     )}
                   </div>
                 </div>
+              </div>
+            </motion.div>
+
+            {/* ─────────────────────────────────────────── */}
+            {/* APPLIED JOBS (top of page, per request)     */}
+            {/* ─────────────────────────────────────────── */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.02 }}
+              className="section-card">
+              <SectionTitle
+                icon={<BriefcaseIcon size={15} color={C.red} />}
+                label="Applied Jobs"
+                right={
+                  <button
+                    onClick={fetchAppliedJobs}
+                    disabled={appliedJobsLoading}
+                    className="doc-action-btn"
+                    style={{ padding: "6px 12px" }}
+                  >
+                    <RefreshCw size={12} style={appliedJobsLoading ? { animation: "spin 1s linear infinite" } : undefined} />
+                    Refresh
+                  </button>
+                }
+              />
+
+              <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+                {appliedJobsLoading ? (
+                  <>
+                    <SkeletonBlock h={92} />
+                    <SkeletonBlock h={92} />
+                  </>
+                ) : appliedJobsError ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderRadius: 10, background: C.alertBg, border: `1px solid ${C.alertBorder}`, color: C.alertText, fontSize: 13 }}>
+                    <AlertTriangle size={15} /> {appliedJobsError}
+                    <button
+                      onClick={fetchAppliedJobs}
+                      style={{ marginLeft: "auto", background: "none", border: "none", color: C.alertText, fontWeight: 700, fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : appliedJobs.length === 0 ? (
+                  <div style={{ padding: "24px", textAlign: "center", color: C.textHint, fontSize: 14 }}>
+                    This contractor hasn't applied to any jobs yet.
+                  </div>
+                ) : (
+                  appliedJobs.map((job, index) => (
+  <AppliedJobCard
+    key={job.id || index}
+    job={job}
+    employeeId={employeeId}
+    policyUrl={userPolicy?.signed_pdf_url ?? null}
+    onDecision={handleJobDecision}
+  />
+))
+                )}
               </div>
             </motion.div>
 
