@@ -79,7 +79,7 @@ interface GroupData {
   id: string; name: string; isActive: boolean; total: number; createdAt: string;
 }
 interface CampaignData {
-  id: string | null; name: string; isActive: boolean;
+  id: string | number | null; name: string; isActive: boolean;
   total: number; verified: number; unverified: number; recentAdditions: number;
 }
 
@@ -269,20 +269,18 @@ export default function MasterReportPage() {
       try {
         const headers = getAuthHeaders();
 
-        const [summaryRes, provincesRes, citiesRes, groupsRes, campaignsRes] = await Promise.all([
+        const [summaryRes, provincesRes, citiesRes, groupsRes] = await Promise.all([
           fetch(`${BASE_URL}/master-report/summary`, { headers }),
           fetch(`${BASE_URL}/master-report/provinces?sort=count&order=desc`, { headers }),
           fetch(`${BASE_URL}/master-report/cities?sort=count&order=desc`, { headers }),
           fetch(`${BASE_URL}/master-report/groups?sort=recentAdditions&order=desc`, { headers }),
-          fetch(`${BASE_URL}/master-report/campaigns`, { headers }),
         ]);
 
-        const [summaryJson, provincesJson, citiesJson, groupsJson, campaignsJson] = await Promise.all([
+        const [summaryJson, provincesJson, citiesJson, groupsJson] = await Promise.all([
           summaryRes.json(),
           provincesRes.json(),
           citiesRes.json(),
           groupsRes.json(),
-          campaignsRes.json(),
         ]);
 
         // Summary
@@ -305,9 +303,30 @@ export default function MasterReportPage() {
           setGroups(groupsJson.data);
         }
 
-        // Campaigns
-        if (Array.isArray(campaignsJson?.data)) {
-          setCampaigns(campaignsJson.data);
+        // Campaigns — comes from the summary payload's "byCampaign" array,
+        // not a separate endpoint. The API doesn't return an isActive flag
+        // for campaigns, so we derive it: a campaign with candidates
+        // currently assigned to it is treated as active.
+        if (Array.isArray(summaryJson?.summary?.byCampaign)) {
+          const formattedCampaigns: CampaignData[] = summaryJson.summary.byCampaign.map(
+            (c: {
+              id: string | number | null;
+              name: string;
+              total: number;
+              verified: number;
+              unverified: number;
+              recentAdditions: number;
+            }) => ({
+              id: c.id,
+              name: c.name,
+              total: c.total ?? 0,
+              verified: c.verified ?? 0,
+              unverified: c.unverified ?? 0,
+              recentAdditions: c.recentAdditions ?? 0,
+              isActive: (c.total ?? 0) > 0,
+            })
+          );
+          setCampaigns(formattedCampaigns);
         }
       } catch (err) {
         console.error("Master Report fetch error:", err);
@@ -788,7 +807,9 @@ export default function MasterReportPage() {
                   <span style={{ textAlign: "right" }}>Verified</span>
                   <span style={{ textAlign: "right" }}>Status</span>
                 </div>
-                {loading ? <LoadingSpinner /> : campaigns.map((camp, i) => (
+                {loading ? <LoadingSpinner /> : campaigns.length === 0 ? (
+                  <div style={{ padding: "24px", color: C.textMuted, fontSize: "14px" }}>No campaign data available</div>
+                ) : campaigns.map((camp, i) => (
                   <div key={i} style={{ padding: "16px 24px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", borderBottom: i !== campaigns.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
                     <span style={{ fontSize: "14px", color: C.textHeading, fontWeight: 600 }}>{camp.name}</span>
                     <span style={{ fontSize: "14px", color: C.textMuted, textAlign: "right" }}>{camp.total}</span>
@@ -843,5 +864,3 @@ export default function MasterReportPage() {
     </>
   );
 }
-
-
