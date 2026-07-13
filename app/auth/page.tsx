@@ -95,7 +95,7 @@ const GLOBAL_CSS = `
 
 /* ─── TICKER ─────────────────────────────────────────────────── */
 function Ticker() {
-  const items = ["Talent Redefined", "500+ Partners", "10,000+ Placed", "Redefining Culture", "India's Premier Staffing", "People First"];
+  const items = ["Talent Redefined", "500+ Partners", "10,000+ Placed", "Redefining Culture", "Canada's Premier Staffing", "People First"];
   const doubled = [...items, ...items];
   return (
     <div style={{
