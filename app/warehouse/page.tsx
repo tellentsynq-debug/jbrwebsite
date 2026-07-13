@@ -65,10 +65,12 @@ interface WarehouseEntry {
   created_at?: string;
   updated_at?: string;
   deleted_at?: string | null;
-  privacy_policy_url?: string | null;
-  privacy_policy_storage_path?: string | null;
-  terms_and_conditions_url?: string | null;
-  terms_and_conditions_storage_path?: string | null;
+  // These may come back as a single URL, or an array of URLs, depending on
+  // how many files were uploaded. We normalize everything to string[] in the UI.
+  privacy_policy_url?: string | string[] | null;
+  privacy_policy_storage_path?: string | string[] | null;
+  terms_and_conditions_url?: string | string[] | null;
+  terms_and_conditions_storage_path?: string | string[] | null;
 }
 
 /* ─── HELPERS ────────────────────────────────────────────────── */
@@ -85,6 +87,14 @@ function authHeaders(includeContentType = false): Record<string, string> {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (includeContentType) headers["Content-Type"] = "application/json";
   return headers;
+}
+
+// Normalize a URL field that might be a single string, an array, or null/undefined
+// into a clean string[] for rendering.
+function toUrlArray(value?: string | string[] | null): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return [value];
 }
 
 const BASE_URL = "https://jbrstaffingsolutions.com/api/warehouses";
@@ -148,17 +158,31 @@ function FormField({
   );
 }
 
-/* ─── FILE FIELD ─────────────────────────────────────────────── */
-function FileField({
-  label, file, existingUrl, onChange, icon,
+/* ─── MULTI FILE FIELD ───────────────────────────────────────── */
+// Supports selecting multiple files for a single field (e.g. multiple
+// privacy policy pages/documents). Files can be added across several
+// selections (they accumulate) and removed individually before saving.
+function MultiFileField({
+  label, files, existingUrls, onChange, icon,
 }: {
   label: string;
-  file: File | null;
-  existingUrl?: string | null;
-  onChange: (f: File | null) => void;
+  files: File[];
+  existingUrls?: string[];
+  onChange: (files: File[]) => void;
   icon?: React.ReactNode;
 }) {
   const inputId = `file-${label.replace(/\s+/g, "-").toLowerCase()}`;
+
+  const handleSelect = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const newFiles = Array.from(fileList);
+    onChange([...files, ...newFiles]);
+  };
+
+  const removeFile = (index: number) => {
+    onChange(files.filter((_, i) => i !== index));
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
       <label style={{ fontSize: "12px", fontWeight: 600, color: C.textLabel }}>{label}</label>
@@ -168,40 +192,71 @@ function FileField({
           style={{
             display: "flex", alignItems: "center", gap: "8px", padding: "12px 16px",
             background: C.inputBg, border: `1px dashed ${C.border}`, borderRadius: "8px",
-            color: file ? C.textBody : C.textHint, fontSize: "13px", cursor: "pointer",
+            color: files.length ? C.textBody : C.textHint, fontSize: "13px", cursor: "pointer",
             flex: 1, minWidth: 0, transition: "all 0.2s ease",
           }}
         >
           {icon ?? <Upload size={15} />}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {file ? file.name : "Choose a file to upload…"}
+            {files.length
+              ? `${files.length} file${files.length > 1 ? "s" : ""} selected`
+              : "Choose file(s) to upload…"}
           </span>
         </label>
         <input
           id={inputId}
           type="file"
           accept="image/*,.pdf"
+          multiple
           style={{ display: "none" }}
-          onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            handleSelect(e.target.files);
+            // reset so selecting the same file again still fires onChange
+            e.target.value = "";
+          }}
         />
-        {file && (
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            style={{ background: "transparent", border: "none", color: C.textHint, cursor: "pointer", padding: "4px" }}
-            title="Remove selected file"
-          >
-            <X size={16} />
-          </button>
-        )}
       </div>
-      {!file && existingUrl && (
-        <a
-          href={existingUrl} target="_blank" rel="noopener noreferrer"
-          style={{ fontSize: "12px", color: C.red, display: "flex", alignItems: "center", gap: "5px", textDecoration: "none" }}
-        >
-          <Paperclip size={12} /> View current file
-        </a>
+
+      {/* Selected (pending upload) files */}
+      {files.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {files.map((f, i) => (
+            <div key={`${f.name}-${i}`} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "6px 10px", background: C.inputBg, borderRadius: "6px",
+            }}>
+              <span style={{
+                fontSize: "12px", color: C.textBody, overflow: "hidden",
+                textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: "8px",
+              }}>
+                {f.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeFile(i)}
+                style={{ background: "transparent", border: "none", color: C.textHint, cursor: "pointer", padding: "2px", flexShrink: 0 }}
+                title="Remove selected file"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Existing uploaded files (already saved on the server) */}
+      {existingUrls && existingUrls.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {existingUrls.map((url, i) => (
+            <a
+              key={i}
+              href={url} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: "12px", color: C.red, display: "flex", alignItems: "center", gap: "5px", textDecoration: "none" }}
+            >
+              <Paperclip size={12} /> View existing file {existingUrls.length > 1 ? i + 1 : ""}
+            </a>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -324,8 +379,9 @@ function WarehouseModal({
   const [warehouseAddress,setWarehouseAddress]= useState(entry?.warehouse_address ?? "");
   const [supervisorManager,setSupervisorManager] = useState(entry?.supervisor_manager ?? "");
   const [isActive,        setIsActive]        = useState(entry?.is_active ?? true);
-  const [privacyPolicyFile, setPrivacyPolicyFile] = useState<File | null>(null);
-  const [termsFile,         setTermsFile]         = useState<File | null>(null);
+  // Now arrays, to support multiple files per field
+  const [privacyPolicyFiles, setPrivacyPolicyFiles] = useState<File[]>([]);
+  const [termsFiles,         setTermsFiles]         = useState<File[]>([]);
   const [isLoading,       setIsLoading]       = useState(false);
   const [isSuccess,       setIsSuccess]       = useState(false);
   const [errorMsg,        setErrorMsg]        = useState("");
@@ -337,9 +393,9 @@ function WarehouseModal({
       setErrorMsg("Please fill in all fields.");
       return;
     }
-    // On create, both documents are required
-    if (mode === "add" && (!privacyPolicyFile || !termsFile)) {
-      setErrorMsg("Please upload both the privacy policy and terms & conditions files.");
+    // On create, both documents are required (at least one file each)
+    if (mode === "add" && (privacyPolicyFiles.length === 0 || termsFiles.length === 0)) {
+      setErrorMsg("Please upload at least one file for both Warehouse Rules & Regulations and the Warehouse Contractor Agreement.");
       return;
     }
     setErrorMsg("");
@@ -350,14 +406,16 @@ function WarehouseModal({
 
       if (mode === "add") {
         // POST — multipart/form-data with all fields + files
+        // Multiple files for the same field are appended under the same key,
+        // which most backends (multer .array(), etc.) parse as an array.
         const formData = new FormData();
         formData.append("customer_name", customerName);
         formData.append("warehouse_name", warehouseName);
         formData.append("warehouse_address", warehouseAddress);
         formData.append("supervisor_manager", supervisorManager);
         formData.append("is_active", String(isActive));
-        if (privacyPolicyFile) formData.append("privacy_policy", privacyPolicyFile);
-        if (termsFile) formData.append("terms_and_conditions", termsFile);
+        privacyPolicyFiles.forEach((f) => formData.append("privacy_policy", f));
+        termsFiles.forEach((f) => formData.append("terms_and_conditions", f));
 
         res = await fetch(BASE_URL, {
           method: "POST",
@@ -384,11 +442,13 @@ function WarehouseModal({
         if (isActive !== (entry?.is_active ?? true)) {
           formData.append("is_active", String(isActive)); hasChanges = true;
         }
-        if (privacyPolicyFile) {
-          formData.append("privacy_policy", privacyPolicyFile); hasChanges = true;
+        if (privacyPolicyFiles.length > 0) {
+          privacyPolicyFiles.forEach((f) => formData.append("privacy_policy", f));
+          hasChanges = true;
         }
-        if (termsFile) {
-          formData.append("terms_and_conditions", termsFile); hasChanges = true;
+        if (termsFiles.length > 0) {
+          termsFiles.forEach((f) => formData.append("terms_and_conditions", f));
+          hasChanges = true;
         }
 
         // If nothing changed, just close
@@ -515,20 +575,20 @@ function WarehouseModal({
                 icon={<User size={15} />}
               />
 
-              {/* File uploads */}
+              {/* File uploads (multiple files allowed per field) */}
               <div style={{ display: "flex", gap: "16px" }}>
-                <FileField
-                  label={`Privacy Policy${mode === "add" ? "" : " (optional)"}`}
-                  file={privacyPolicyFile}
-                  existingUrl={entry?.privacy_policy_url}
-                  onChange={setPrivacyPolicyFile}
+                <MultiFileField
+                  label={`Warehouse Rules & Regulations${mode === "add" ? "" : " (optional)"}`}
+                  files={privacyPolicyFiles}
+                  existingUrls={toUrlArray(entry?.privacy_policy_url)}
+                  onChange={setPrivacyPolicyFiles}
                   icon={<FileText size={15} />}
                 />
-                <FileField
-                  label={`Terms & Conditions${mode === "add" ? "" : " (optional)"}`}
-                  file={termsFile}
-                  existingUrl={entry?.terms_and_conditions_url}
-                  onChange={setTermsFile}
+                <MultiFileField
+                  label={`Warehouse Contractor Agreement${mode === "add" ? "" : " (optional)"}`}
+                  files={termsFiles}
+                  existingUrls={toUrlArray(entry?.terms_and_conditions_url)}
+                  onChange={setTermsFiles}
                   icon={<FileText size={15} />}
                 />
               </div>
@@ -1010,6 +1070,8 @@ export default function WarehousePage() {
                     <div style={{ display: "flex", flexDirection: "column" }}>
                       {filtered.map((w, idx) => {
                         const isToggling = !!actionLoading[w.id];
+                        const privacyUrls = toUrlArray(w.privacy_policy_url);
+                        const termsUrls = toUrlArray(w.terms_and_conditions_url);
                         return (
                           <motion.div
                             key={w.id} variants={itemVars}
@@ -1056,25 +1118,31 @@ export default function WarehousePage() {
 
                             {/* Documents */}
                             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                              {w.privacy_policy_url ? (
-                                <a
-                                  href={w.privacy_policy_url} target="_blank" rel="noopener noreferrer"
-                                  style={{ fontSize: "12px", color: C.red, display: "flex", alignItems: "center", gap: "5px", textDecoration: "none" }}
-                                >
-                                  <FileText size={12} /> Privacy Policy
-                                </a>
+                              {privacyUrls.length > 0 ? (
+                                privacyUrls.map((url, i) => (
+                                  <a
+                                    key={`pp-${i}`}
+                                    href={url} target="_blank" rel="noopener noreferrer"
+                                    style={{ fontSize: "12px", color: C.red, display: "flex", alignItems: "center", gap: "5px", textDecoration: "none" }}
+                                  >
+                                    <FileText size={12} /> Warehouse Rules & Regulations{privacyUrls.length > 1 ? ` ${i + 1}` : ""}
+                                  </a>
+                                ))
                               ) : (
-                                <span style={{ fontSize: "12px", color: C.textHint }}>No privacy policy</span>
+                                <span style={{ fontSize: "12px", color: C.textHint }}>No rules & regulations</span>
                               )}
-                              {w.terms_and_conditions_url ? (
-                                <a
-                                  href={w.terms_and_conditions_url} target="_blank" rel="noopener noreferrer"
-                                  style={{ fontSize: "12px", color: C.red, display: "flex", alignItems: "center", gap: "5px", textDecoration: "none" }}
-                                >
-                                  <FileText size={12} /> Terms & Conditions
-                                </a>
+                              {termsUrls.length > 0 ? (
+                                termsUrls.map((url, i) => (
+                                  <a
+                                    key={`tc-${i}`}
+                                    href={url} target="_blank" rel="noopener noreferrer"
+                                    style={{ fontSize: "12px", color: C.red, display: "flex", alignItems: "center", gap: "5px", textDecoration: "none" }}
+                                  >
+                                    <FileText size={12} /> Warehouse Contractor Agreement{termsUrls.length > 1 ? ` ${i + 1}` : ""}
+                                  </a>
+                                ))
                               ) : (
-                                <span style={{ fontSize: "12px", color: C.textHint }}>No terms & conditions</span>
+                                <span style={{ fontSize: "12px", color: C.textHint }}>No contractor agreement</span>
                               )}
                             </div>
 
