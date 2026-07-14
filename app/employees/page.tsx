@@ -153,6 +153,27 @@ interface JobPosting {
   } | null;
 }
 
+/* Province from /provinces — used to populate the Province filter dropdown */
+interface Province {
+  id: string;
+  name: string;
+  code: string;
+  is_active: boolean;
+  city_count?: number;
+}
+
+/* City from /cities — used to populate the City filter dropdown. Carries a
+ * nested `provinces` object (id/code/name) so we can cascade the City
+ * dropdown based on whichever Province is currently selected. */
+interface City {
+  id: string;
+  name: string;
+  province_id: string;
+  is_active: boolean;
+  candidate_count?: number;
+  provinces?: { id: string; code: string; name: string } | null;
+}
+
 interface Toast {
   type: "success" | "error" | "info";
   message: string;
@@ -921,12 +942,14 @@ function SelectFilter({
   onChange,
   children,
   loading = false,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   children: React.ReactNode;
   loading?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -942,7 +965,7 @@ function SelectFilter({
         <select
           value={value}
           onChange={e => onChange(e.target.value)}
-          disabled={loading}
+          disabled={loading || disabled}
           style={{
             width: "100%",
             background: C.inputBg,
@@ -952,6 +975,8 @@ function SelectFilter({
             color: value && value !== "all" ? C.textBody : C.textHint,
             fontSize: "14px",
             outline: "none",
+            opacity: disabled && !loading ? 0.6 : 1,
+            cursor: disabled || loading ? "not-allowed" : "pointer",
           }}
         >
           {children}
@@ -990,6 +1015,14 @@ export default function EmployeesPage() {
   const [jobCategoriesLoading, setJobCategoriesLoading] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
+
+  // Province / City filter options — populated from the /provinces and
+  // /cities endpoints so the vendor can pick from a dropdown instead of
+  // free-typing (which was error-prone against the actual stored values).
+  const [provinces, setProvinces] = useState<Province[]>([]);
+  const [provincesLoading, setProvincesLoading] = useState(false);
+  const [cities, setCities] = useState<City[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -1041,6 +1074,42 @@ export default function EmployeesPage() {
       .catch(() => showToast({ type: "error", message: "Failed to load groups." }))
       .finally(() => setGroupsLoading(false));
   }, []);
+
+  /* ── FETCH PROVINCES (for the Province filter dropdown) ── */
+  useEffect(() => {
+    setProvincesLoading(true);
+    fetch(`${BASE_URL}/provinces`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then(j => setProvinces((j.data || []).filter((p: Province) => p.is_active !== false)))
+      .catch(() => showToast({ type: "error", message: "Failed to load provinces." }))
+      .finally(() => setProvincesLoading(false));
+  }, []);
+
+  /* ── FETCH CITIES (for the City filter dropdown) ── */
+  useEffect(() => {
+    setCitiesLoading(true);
+    fetch(`${BASE_URL}/cities`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then(j => setCities((j.data || []).filter((c: City) => c.is_active !== false)))
+      .catch(() => showToast({ type: "error", message: "Failed to load cities." }))
+      .finally(() => setCitiesLoading(false));
+  }, []);
+
+  // Cities are cascaded off the currently selected province so the City
+  // dropdown only ever shows cities that actually belong to it.
+  const filteredCityOptions = useMemo(() => {
+    if (provinceFilter === "all") return cities;
+    return cities.filter(c => (c.provinces?.name || "") === provinceFilter);
+  }, [cities, provinceFilter]);
+
+  // If the selected province changes and the currently selected city no
+  // longer belongs to it, clear the city filter so we don't end up with an
+  // impossible combination.
+  useEffect(() => {
+    if (cityFilter === "all") return;
+    const stillValid = filteredCityOptions.some(c => c.name === cityFilter);
+    if (!stillValid) setCityFilter("all");
+  }, [provinceFilter, filteredCityOptions, cityFilter]);
 
   /*
    * ── FETCH EMPLOYEES ──
@@ -1105,11 +1174,12 @@ export default function EmployeesPage() {
       if (jobCategoryFilter !== "all" && String(emp.job_category_id) !== String(jobCategoryFilter)) {
         return false;
       }
-      // Partial, case-insensitive match — so typing "surrey" matches "Surrey, BC"
-      if (province && !(emp.province || "").toLowerCase().includes(province)) {
+      // Exact (case-insensitive) match now that province/city come from a
+      // dropdown of known values rather than free text.
+      if (province && (emp.province || "").trim().toLowerCase() !== province) {
         return false;
       }
-      if (city && !(emp.city || "").toLowerCase().includes(city)) {
+      if (city && (emp.city || "").trim().toLowerCase() !== city) {
         return false;
       }
       if (term) {
@@ -1421,23 +1491,37 @@ const rows = employeesToExport.map(e => ({
                   ))}
                 </SelectFilter>
 
-                {/* Province */}
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: C.textLabel, marginBottom: "8px" }}>Province</label>
-                  <input type="text" placeholder="e.g. British Columbia" value={provinceFilter === "all" ? "" : provinceFilter}
-                    onChange={e => { setProvinceFilter(e.target.value || "all"); setCurrentPage(1); }}
-                    style={{ width: "100%", background: C.inputBg, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "10px 16px", color: C.textBody, fontSize: "14px", outline: "none" }}
-                    onFocus={e => e.target.style.borderColor = C.red} onBlur={e => e.target.style.borderColor = C.border} />
-                </div>
+                {/* Province — now a dropdown sourced from /provinces, so vendors
+                    pick a real province instead of free-typing */}
+                <SelectFilter
+                  label="Province"
+                  value={provinceFilter}
+                  onChange={v => { setProvinceFilter(v); setCurrentPage(1); }}
+                  loading={provincesLoading}
+                >
+                  <option value="all">All Provinces</option>
+                  {provinces.map(p => (
+                    <option key={p.id} value={p.name}>
+                      {p.name}{typeof p.city_count === "number" ? ` (${p.city_count})` : ""}
+                    </option>
+                  ))}
+                </SelectFilter>
 
-                {/* City */}
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: C.textLabel, marginBottom: "8px" }}>City</label>
-                  <input type="text" placeholder="e.g. Surrey" value={cityFilter === "all" ? "" : cityFilter}
-                    onChange={e => { setCityFilter(e.target.value || "all"); setCurrentPage(1); }}
-                    style={{ width: "100%", background: C.inputBg, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "10px 16px", color: C.textBody, fontSize: "14px", outline: "none" }}
-                    onFocus={e => e.target.style.borderColor = C.red} onBlur={e => e.target.style.borderColor = C.border} />
-                </div>
+                {/* City — now a dropdown sourced from /cities, cascaded by the
+                    selected Province so only relevant cities are listed */}
+                <SelectFilter
+                  label="City"
+                  value={cityFilter}
+                  onChange={v => { setCityFilter(v); setCurrentPage(1); }}
+                  loading={citiesLoading}
+                >
+                  <option value="all">All Cities</option>
+                  {filteredCityOptions.map(c => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}{typeof c.candidate_count === "number" ? ` (${c.candidate_count})` : ""}
+                    </option>
+                  ))}
+                </SelectFilter>
 
               </div>
             </motion.div>
