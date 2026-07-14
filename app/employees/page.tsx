@@ -78,7 +78,9 @@ const BASE_URL = "https://jbrstaffingsolutions.com/api";
 
 // How many candidates to pull from /employees/page-data in one request.
 // Kept deliberately modest (instead of the old 10000) so we don't drag the
-// entire 2000+ row candidate table into the browser on every load.
+// entire 2000+ row candidate table into the browser on every load. Province
+// and City filters below only ever match within this loaded set — they do
+// not trigger a separate full-table fetch.
 const EMPLOYEES_FETCH_LIMIT = 200;
 
 const getAuthToken = () =>
@@ -1174,13 +1176,21 @@ export default function EmployeesPage() {
       if (jobCategoryFilter !== "all" && String(emp.job_category_id) !== String(jobCategoryFilter)) {
         return false;
       }
-      // Exact (case-insensitive) match now that province/city come from a
-      // dropdown of known values rather than free text.
-      if (province && (emp.province || "").trim().toLowerCase() !== province) {
-        return false;
+      // Partial, case-insensitive match — the dropdown guarantees a valid
+      // province/city name, but the candidate's stored text can still have
+      // extra whitespace or trailing qualifiers (e.g. "Surrey, BC"), so we
+      // match with `includes` in both directions instead of a strict ===.
+      if (province) {
+        const empProvince = (emp.province || "").trim().toLowerCase();
+        if (!empProvince || (!empProvince.includes(province) && !province.includes(empProvince))) {
+          return false;
+        }
       }
-      if (city && (emp.city || "").trim().toLowerCase() !== city) {
-        return false;
+      if (city) {
+        const empCity = (emp.city || "").trim().toLowerCase();
+        if (!empCity || (!empCity.includes(city) && !city.includes(empCity))) {
+          return false;
+        }
       }
       if (term) {
         const haystack = `${emp.first_name || ""} ${emp.last_name || ""} ${emp.email || ""} ${emp.phone_number || ""}`.toLowerCase();
@@ -1502,8 +1512,8 @@ const rows = employeesToExport.map(e => ({
                   <option value="all">All Provinces</option>
                   {provinces.map(p => (
                     <option key={p.id} value={p.name}>
-                      {p.name}{typeof p.city_count === "number" ? ` (${p.city_count})` : ""}
-                    </option>
+  {p.name}
+</option>
                   ))}
                 </SelectFilter>
 
@@ -1517,9 +1527,9 @@ const rows = employeesToExport.map(e => ({
                 >
                   <option value="all">All Cities</option>
                   {filteredCityOptions.map(c => (
-                    <option key={c.id} value={c.name}>
-                      {c.name}{typeof c.candidate_count === "number" ? ` (${c.candidate_count})` : ""}
-                    </option>
+                   <option key={c.id} value={c.name}>
+  {c.name}
+</option>
                   ))}
                 </SelectFilter>
 
