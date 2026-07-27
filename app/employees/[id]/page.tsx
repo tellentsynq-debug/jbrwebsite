@@ -376,26 +376,28 @@ interface AppliedJobWarehouse {
 
 interface AppliedJob {
   id: string;
+
   campaign_name: string;
   role_title: string;
+
   company_or_warehouse: string;
+  company_or_warehouse_name: string;
+  company_or_warehouse_customer: string;
+
   hourly_rate: number;
+
   start_at: string;
   end_at: string;
+
   full_address: string;
+
   is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-  client_policy_url: string | null;
-  user_id: string | null;
-  max_applicants: number;
 
-  application_status: "pending" | "approved" | "rejected" | string;
   application_id: string | null;
+  application_status: string;
 
+  privacy_policy_url: string | null;
   terms_and_conditions_url: string | null;
-  warehouse: AppliedJobWarehouse;
 }
 
 /* ─── HELPERS ─────────────────────────────────────────────────── */
@@ -728,17 +730,36 @@ const isDecided =
 const handleClick = async (
   status: "approved" | "rejected"
 ) => {
-  if (actioning || !job.application_id) return;
+  console.log("handleClick called");
+
+  console.log("job =", job);
+
+  console.log("application_id =", job.application_id);
+
+  console.log("status =", status);
+
+  if (actioning) {
+    console.log("Blocked because actioning =", actioning);
+    return;
+  }
+
+  if (!job.application_id) {
+    console.log("application_id is NULL or undefined");
+    return;
+  }
 
   setActioning(status);
 
   try {
+    console.log("Calling onDecision...");
     await onDecision(job.application_id, status);
+    console.log("onDecision finished");
+  } catch (e) {
+    console.error(e);
   } finally {
     setActioning(null);
   }
 };
-
   return (
     <div className="job-card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
@@ -755,10 +776,10 @@ const handleClick = async (
           </div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <span className="job-meta-item">
-              <Building2 size={13} /> {job.warehouse?.warehouse_name ?? "—"}
+              <Building2 size={13} /> {job.company_or_warehouse_name ?? "—"}
             </span>
             <span className="job-meta-item">
-              <MapPinned size={13} /> {job.full_address || job.warehouse?.warehouse_address || "—"}
+              <MapPinned size={13} /> {job.full_address || "—"}
             </span>
             <span className="job-meta-item">
               <DollarSign size={13} /> ${job.hourly_rate?.toFixed(2)}/hr
@@ -784,7 +805,10 @@ const handleClick = async (
             <>
               <button
                 className="action-btn"
-                onClick={() => handleClick("approved")}
+                onClick={() => {
+  console.log("APPROVE BUTTON CLICKED");
+  handleClick("approved");
+}}
                 disabled={!!actioning}
                 style={{ background: C.successText, color: "#fff", opacity: actioning ? 0.7 : 1, padding: "8px 16px", fontSize: 12.5 }}
               >
@@ -1352,8 +1376,9 @@ const [userPolicyLoading, setUserPolicyLoading] = useState(false);
         }
       );
       if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
-      const json = await res.json();
-      setAppliedJobs(json.data || []);
+     const json = await res.json();
+
+setAppliedJobs(json.data ?? []);
     } catch (err: any) {
       setAppliedJobsError(err.message || "Failed to load applied jobs.");
     } finally {
@@ -1426,35 +1451,47 @@ const handleJobDecision = useCallback(
     applicationId: string,
     status: "approved" | "rejected"
   ) => {
-    if (!employeeId) return;
+    console.log("========== APPROVE / REJECT ==========");
+    console.log("applicationId:", applicationId);
+    console.log("employeeId:", employeeId);
+    console.log("status:", status);
+
+    if (!employeeId) {
+      console.log("employeeId missing");
+      return;
+    }
 
     try {
-      const res = await fetch(
-        `${BASE_URL}/auth/applications/${applicationId}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${getToken()}`,
-          },
-          body: JSON.stringify({
-            user_id: employeeId,
-            status,
-          }),
-        }
-      );
+      const url = `${BASE_URL}/auth/applications/${applicationId}/status`;
+
+      console.log("PATCH URL:", url);
+
+      const body = {
+        user_id: employeeId,
+        status,
+      };
+
+      console.log("REQUEST BODY:", body);
+
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      console.log("HTTP STATUS:", res.status);
+      console.log("HTTP OK:", res.ok);
+
+      const text = await res.text();
+
+      console.log("RAW RESPONSE:");
+      console.log(text);
 
       if (!res.ok) {
-        let serverMessage = "";
-
-        try {
-          const e = await res.json();
-          serverMessage = e?.message || e?.error || "";
-        } catch {}
-
-        throw new Error(
-          serverMessage || `Error ${res.status}`
-        );
+        throw new Error(text);
       }
 
       setAppliedJobs(prev =>
@@ -1475,12 +1512,12 @@ const handleJobDecision = useCallback(
             ? "Application approved successfully."
             : "Application rejected successfully.",
       });
-    } catch (err: any) {
+    } catch (err) {
+      console.error("PATCH ERROR:", err);
+
       showToast({
         type: "error",
-        message:
-          err.message ||
-          "Failed to update application status.",
+        message: String(err),
       });
     }
   },
