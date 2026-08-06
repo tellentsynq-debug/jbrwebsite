@@ -81,7 +81,7 @@ const BASE_URL = "https://jbrstaffingsolutions.com/api";
 // entire 2000+ row candidate table into the browser on every load. Province
 // and City filters below only ever match within this loaded set — they do
 // not trigger a separate full-table fetch.
-const EMPLOYEES_FETCH_LIMIT = 200;
+const EMPLOYEES_FETCH_LIMIT = 5000;
 
 const getAuthToken = () =>
   typeof window !== "undefined" ? localStorage.getItem("jbr_token") || "" : "";
