@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
+
+
 /* ─── DESIGN TOKENS (LIGHT GRAY PROFESSIONAL THEME) ─────────── */
 const C = {
   bg: "#F0F2F5",
@@ -89,6 +91,8 @@ const itemVars: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: spring }
 };
+
+
 
 /* ─── COMPONENTS ─────────────────────────────────────────────── */
 
