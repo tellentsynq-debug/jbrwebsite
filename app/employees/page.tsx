@@ -1140,8 +1140,14 @@ export default function EmployeesPage() {
         setTotalCandidates(null);
       } else {
         const params = new URLSearchParams();
-        params.set("limit", String(EMPLOYEES_FETCH_LIMIT));
-        const res = await fetch(`${BASE_URL}/employees/page-data?${params.toString()}`, { headers: authHeaders() });
+params.set("limit", String(EMPLOYEES_FETCH_LIMIT));
+params.set("fast", "true");
+
+const res = await fetch(
+  `${BASE_URL}/employees/page-data?${params.toString()}`,
+  { headers: authHeaders() }
+);
+        
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const json = await res.json();
         rawData = (json.candidates || []).map(mapCandidateToEmployee);
