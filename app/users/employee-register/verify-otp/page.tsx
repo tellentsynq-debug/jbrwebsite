@@ -38,7 +38,7 @@ const GLOBAL_CSS = `
   input:focus { outline: none; }
 `;
 
-/* ─── LOGO (identical to auth page) ─────────────────────────── */
+/* ─── LOGO ───────────────────────────────────────────────────── */
 function Logo() {
   return (
     <div style={{
@@ -99,19 +99,14 @@ function OtpInput({
           onFocus={() => setFocused(i)}
           onBlur={() => setFocused(null)}
           style={{
-            width: "48px",
-            height: "56px",
+            width: "48px", height: "56px",
             border: `1.5px solid ${focused === i ? C.red : digit ? C.borderHover : C.border}`,
             borderRadius: "10px",
             background: focused === i ? C.surface : C.inputBg,
-            textAlign: "center",
-            fontSize: "20px",
-            fontWeight: 700,
-            color: C.textHeading,
-            fontFamily: "'DM Sans', sans-serif",
+            textAlign: "center", fontSize: "20px", fontWeight: 700,
+            color: C.textHeading, fontFamily: "'DM Sans', sans-serif",
             transition: "all 0.2s cubic-bezier(0.4,0,0.2,1)",
-            outline: "none",
-            caretColor: C.red,
+            outline: "none", caretColor: C.red,
           }}
         />
       ))}
@@ -179,7 +174,6 @@ function VerifyOtpForm() {
 
   const email = searchParams.get("email") || "";
   const phone = searchParams.get("phone") || "";
-  
 
   const isEmailActive = Boolean(email);
   const verifyMethod = isEmailActive ? "Email" : "WhatsApp";
@@ -215,68 +209,47 @@ function VerifyOtpForm() {
     inputRefs.current[nextEmpty]?.focus();
   };
 
- const handleVerify = async () => {
-  const otpString = otp.join("");
-
-  if (otpString.length < 6) {
-    setErrorMsg("Please enter the complete 6-digit code.");
-    return;
-  }
-
-  setIsLoading(true);
-  setErrorMsg("");
-
-  try {
-    const payload: Record<string, string> = { otp: otpString };
-
-    if (email) payload.email = email;
-    if (phone) payload.phone = phone;
-
-    const res = await fetch(
-      "https://jbrstaffingsolutions.com/api/candidates/verify-otp",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    );
-
-    const data = await res.json().catch(() => ({}));
-
-    console.log("OTP VERIFY RESPONSE:", data);
-
-    if (res.ok && data.jwtToken) {
-      // Save authentication data
-      localStorage.setItem("jbr_token", data.jwtToken);
-      localStorage.setItem(
-        "jbr_email",
-        data.email || email
-      );
-
-      // Backend tells us where to go
-      router.push("/users");
-    } else {
-      setErrorMsg(
-        data.message ||
-          "Invalid verification code. Please try again."
-      );
+  const handleVerify = async () => {
+    const otpString = otp.join("");
+    if (otpString.length < 6) {
+      setErrorMsg("Please enter the complete 6-digit code.");
+      return;
     }
-  } catch {
-    setErrorMsg(
-      "A network error occurred. Please check your connection."
-    );
-  } finally {
-    setIsLoading(false);
-  }
-};
+    setIsLoading(true);
+    setErrorMsg("");
+    try {
+      const payload: Record<string, string> = { otp: otpString };
+      if (email) payload.email = email;
+      if (phone) payload.phone = phone;
+
+      const res = await fetch("https://jbrstaffingsolutions.com/api/candidates/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+     if (res.ok && data.jwtToken) {
+  localStorage.setItem("jbr_token_user", data.jwtToken);
+  localStorage.setItem("jbr_email_user", data.email || email);
+
+  // Use the redirect URL returned by the API
+  router.push("/users");
+} else {
+        setErrorMsg(data.message || "Invalid verification code. Please try again.");
+      }
+    } catch {
+      setErrorMsg("A network error occurred. Please check your connection.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <>
       <style>{GLOBAL_CSS}</style>
 
-      {/* Top accent bar */}
       <div style={{
         position: "fixed", top: 0, left: 0, right: 0, height: "3px",
         background: `linear-gradient(to right, ${C.redBright}, ${C.red})`, zIndex: 50,
@@ -317,7 +290,6 @@ function VerifyOtpForm() {
             </p>
           </div>
 
-          {/* OTP with paste support */}
           <div onPaste={handlePaste}>
             <OtpInput
               otp={otp}
@@ -351,8 +323,7 @@ function VerifyOtpForm() {
                 fontFamily: "'DM Sans', sans-serif",
                 letterSpacing: "0.3px",
                 transition: "color 0.2s",
-                padding: "4px 8px",
-                borderRadius: "6px",
+                padding: "4px 8px", borderRadius: "6px",
               }}
               onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
               onMouseLeave={(e) => (e.currentTarget.style.color = C.textMuted)}

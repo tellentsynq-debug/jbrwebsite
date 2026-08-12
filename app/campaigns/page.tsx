@@ -97,8 +97,7 @@ function toInputDate(iso: string): string {
 
 function getCampaignLink(camp: Campaign): string {
   const tokenValue = camp.link_token ?? String(camp.id);
-  const baseUrl = "https://jbr-user.vercel.app";
-  return `${baseUrl}/employee-register?token=${tokenValue}`;
+  return `/users/employee-register?token=${tokenValue}`;
 }
 
 /* ─── ANIMATION VARIANTS ─────────────────────────────────────── */
@@ -169,32 +168,40 @@ function TopNav() {
 }
 
 /* ─── COPY LINK BUTTON ───────────────────────────────────────── */
-function CopyLinkButton({ campaign }: { campaign: Campaign }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
+/* ─── OPEN LINK BUTTON ───────────────────────────────────────── */
+function OpenLinkButton({ campaign }: { campaign: Campaign }) {
+  const handleOpen = () => {
     const link = getCampaignLink(campaign);
-    navigator.clipboard.writeText(link).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    window.open(link, "_blank");
   };
 
   return (
     <motion.button
-      onClick={handleCopy}
-      whileHover={copied ? {} : { backgroundColor: C.redActiveBg, borderColor: C.red, color: C.red }}
+      onClick={handleOpen}
+      whileHover={{
+        backgroundColor: C.redActiveBg,
+        borderColor: C.red,
+        color: C.red,
+      }}
       whileTap={{ scale: 0.95 }}
       style={{
-        display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px",
-        background: copied ? C.successBg : "transparent",
-        border: `1px solid ${copied ? "transparent" : C.border}`,
-        borderRadius: "6px", cursor: "pointer",
-        color: copied ? C.successText : C.textLabel,
-        transition: "all 0.2s ease", whiteSpace: "nowrap"
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "6px 12px",
+        background: "transparent",
+        border: `1px solid ${C.border}`,
+        borderRadius: "6px",
+        cursor: "pointer",
+        color: C.textLabel,
+        transition: "all 0.2s ease",
+        whiteSpace: "nowrap",
       }}
     >
-      {copied ? <Check size={14} /> : <Copy size={14} />}
-      <span style={{ fontSize: "12px", fontWeight: 600 }}>{copied ? "Copied!" : "Copy Link"}</span>
+      <Eye size={14} />
+      <span style={{ fontSize: "12px", fontWeight: 600 }}>
+        Open Link
+      </span>
     </motion.button>
   );
 }
@@ -922,10 +929,10 @@ export default function CampaignsPage() {
                             {/* Status — uses is_active boolean */}
                             <div><StatusBadge isActive={camp.is_active} /></div>
 
-                            {/* Copy Link */}
-                            <div>
-                              <CopyLinkButton campaign={camp} />
-                            </div>
+                          {/* Open Link */}
+<div>
+  <OpenLinkButton campaign={camp} />
+</div>
 
                             {/* Actions */}
                             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
