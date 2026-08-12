@@ -348,6 +348,7 @@ interface EmployeeDetail {
   license_expiry_month: number | null;
   license_expiry_year: number | null;
   resume_url: string | null;
+  license_url: string | null;
   created_at: string;
   updated_at: string;
   job_categories: JobCategory;
@@ -490,6 +491,15 @@ function toDateInputValue(iso: string | null | undefined) {
   try {
     return new Date(iso).toISOString().slice(0, 10);
   } catch { return ""; }
+}
+
+/* Returns true if a license_expiry_month/year pair is in the past relative to today */
+function isLicenseExpired(month: number | null, year: number | null) {
+  if (!month || !year) return false;
+  const today = new Date();
+  // Expiry is considered the last day of the given month/year
+  const expiry = new Date(year, month, 0);
+  return expiry < today;
 }
 
 /* ─── VERIFICATION BADGE ──────────────────────────────────────── */
@@ -1603,6 +1613,9 @@ const handleJobDecision = useCallback(
   const shiftLabel = emp ? (SHIFT_MAP[emp.shift_preference] ?? emp.shift_preference) : "—";
   const licenseExpiry = emp?.license_required && emp.license_expiry_month && emp.license_expiry_year
     ? `${MONTHS[emp.license_expiry_month - 1]} ${emp.license_expiry_year}` : null;
+  const licenseExpired = emp
+    ? isLicenseExpired(emp.license_expiry_month, emp.license_expiry_year)
+    : false;
 
   /* ── LOADING SKELETON ── */
   if (loading) {
@@ -1943,7 +1956,18 @@ const handleJobDecision = useCallback(
                   )}
                 </Cell>
                 <Cell label="License Expiry">
-                  {licenseExpiry ?? <span style={{ color: C.textHint }}>—</span>}
+                  {licenseExpiry ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      {licenseExpiry}
+                      {licenseExpired && (
+                        <span className="chip" style={{ background: C.alertBg, borderColor: C.alertBorder, color: C.alertText }}>
+                          <AlertTriangle size={10} /> Expired
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span style={{ color: C.textHint }}>—</span>
+                  )}
                 </Cell>
               </div>
             </motion.div>
@@ -2058,7 +2082,7 @@ const handleJobDecision = useCallback(
             </motion.div>
 
             {/* ─────────────────────────────────────────── */}
-            {/* DOCUMENTS (Resume / other files)            */}
+            {/* DOCUMENTS (Resume / License / other files)  */}
             {/* ─────────────────────────────────────────── */}
             <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.20 }}
               className="section-card">
@@ -2068,12 +2092,39 @@ const handleJobDecision = useCallback(
                   icon={<FileText size={20} color={emp.resume_url ? C.red : C.textHint} />}
                   title="Resume / CV"
                   subtitle={emp.resume_url
-                    ? (emp.resume_url.split("/").pop() ?? "Resume.pdf")
+                    ? (emp.resume_url.split("/").pop()?.split("?")[0] ?? "Resume.pdf")
                     : "No resume uploaded"}
                   docUrl={emp.resume_url}
                   badge={emp.resume_url ? "Available" : undefined}
                   badgeColor={emp.resume_url ? { bg: C.successBg, border: C.successBorder, color: C.successText } : undefined}
                 />
+
+                {/* ── LICENSE DOCUMENT ── (only relevant when a license is required for this role) */}
+                {emp.license_required && (
+                  <DocCard
+                    icon={<IdCard size={20} color={emp.license_url ? C.red : C.textHint} />}
+                    title="License Document"
+                    subtitle={
+                      emp.license_url
+                        ? `${licenseExpiry ? `Expires ${licenseExpiry}` : "Expiry date not set"}${licenseExpired ? " · Expired" : ""}`
+                        : "No license document uploaded"
+                    }
+                    docUrl={emp.license_url}
+                    badge={
+                      emp.license_url
+                        ? (licenseExpired ? "Expired" : "Available")
+                        : "Missing"
+                    }
+                    badgeColor={
+                      emp.license_url
+                        ? (licenseExpired
+                          ? { bg: C.alertBg, border: C.alertBorder, color: C.alertText }
+                          : { bg: C.successBg, border: C.successBorder, color: C.successText })
+                        : { bg: C.alertBg, border: C.alertBorder, color: C.alertText }
+                    }
+                  />
+                )}
+
                 <DocCard
                   icon={<IdCard size={20} color={C.textHint} />}
                   title="ID Verification"
