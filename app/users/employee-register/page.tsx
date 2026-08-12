@@ -247,7 +247,7 @@ function EmployeeRegisterForm() {
         const query = new URLSearchParams();
         if (email.trim()) query.append("email", email.trim());
         if (phone.trim()) query.append("phone", phone.trim());
-        router.push(`/employee-register/verify-otp?${query.toString()}`);
+        router.push(`/users/employee-register/verify-otp?${query.toString()}`);
       } else {
         const data = await res.json().catch(() => ({}));
         setErrorMsg(data.message || "Failed to send OTP. Please check your details and try again.");

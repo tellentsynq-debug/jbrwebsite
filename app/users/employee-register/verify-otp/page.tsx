@@ -209,42 +209,48 @@ function VerifyOtpForm() {
     inputRefs.current[nextEmpty]?.focus();
   };
 
-  const handleVerify = async () => {
-    const otpString = otp.join("");
-    if (otpString.length < 6) {
-      setErrorMsg("Please enter the complete 6-digit code.");
-      return;
-    }
-    setIsLoading(true);
-    setErrorMsg("");
-    try {
-      const payload: Record<string, string> = { otp: otpString };
-      if (email) payload.email = email;
-      if (phone) payload.phone = phone;
+const handleVerify = async () => {
+  const otpString = otp.join("");
+  if (otpString.length < 6) {
+    setErrorMsg("Please enter the complete 6-digit code.");
+    return;
+  }
+  setIsLoading(true);
+  setErrorMsg("");
+  try {
+    const payload: Record<string, string> = { otp: otpString };
+    if (email) payload.email = email;
+    if (phone) payload.phone = phone;
 
-      const res = await fetch("https://jbrstaffingsolutions.com/api/candidates/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    const res = await fetch("https://jbrstaffingsolutions.com/api/candidates/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-      const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch(() => ({}));
 
-     if (res.ok && data.jwtToken) {
-  localStorage.setItem("jbr_token_user", data.jwtToken);
-  localStorage.setItem("jbr_email_user", data.email || email);
-
-  // Use the redirect URL returned by the API
-  router.push("/users");
-} else {
-        setErrorMsg(data.message || "Invalid verification code. Please try again.");
+    // TEMP DEBUG — show exactly what happened, right on screen
+    if (res.ok && data.jwtToken) {
+      localStorage.setItem("jbr_token_user", data.jwtToken);
+      const check = localStorage.getItem("jbr_token_user");
+      if (!check) {
+        setErrorMsg("DEBUG: token write failed silently — storage may be blocked.");
+        setIsLoading(false);
+        return;
       }
-    } catch {
-      setErrorMsg("A network error occurred. Please check your connection.");
-    } finally {
-      setIsLoading(false);
+      router.push("/users");
+    } else {
+      setErrorMsg(
+        `DEBUG status=${res.status} ok=${res.ok} jwtPresent=${Boolean(data.jwtToken)} body=${JSON.stringify(data)}`
+      );
     }
-  };
+  } catch (err: any) {
+    setErrorMsg("DEBUG network/catch error: " + (err?.message || String(err)));
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <>
