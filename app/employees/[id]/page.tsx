@@ -342,11 +342,16 @@ interface EmployeeDetail {
   campaign_id: number;
   verification_status: "pending" | "verified" | "rejected";
   available_from: string;
-  permit_status: string;
+permit_status: string;
+  permit_note: string | null;
+  permit_expiry_month: number | null;
+  permit_expiry_year: number | null;
+  permit_document_url: string | null;
   shift_preference: string;
   license_required: boolean;
-  license_expiry_month: number | null;
+license_expiry_month: number | null;
   license_expiry_year: number | null;
+  availability_days: string[] | null;
   resume_url: string | null;
   license_url: string | null;
   created_at: string;
@@ -1280,6 +1285,18 @@ function EditContractorModal({ employee, onClose, onSaved, showToast }: EditCont
   );
 }
 
+function parseAvailabilityDays(raw: string[] | null | undefined): string[] {
+  if (!raw || !Array.isArray(raw) || raw.length === 0) return [];
+  const looksMalformed = raw.some(d => typeof d === "string" && (d.includes("[") || d.includes("]") || d.includes('"')));
+  if (!looksMalformed) return raw;
+  return raw
+    .join(",")
+    .replace(/[\[\]"]/g, "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
 /* ─── TOAST (lightweight, local to this page) ─────────────────── */
 function ToastNotification({ toast, onDismiss }: { toast: { type: "success" | "error"; message: string }; onDismiss: () => void }) {
   useEffect(() => {
@@ -1930,8 +1947,23 @@ const handleJobDecision = useCallback(
                 <Cell label="Verification Status">
                   <VerificationBadge status={emp.verification_status} />
                 </Cell>
-                <Cell label="Permit Status">
+            <Cell label="Permit Status">
                   <PermitBadge status={emp.permit_status} />
+                </Cell>
+                {emp.permit_note && (
+                  <Cell label="Permit Note">
+                    {emp.permit_note}
+                  </Cell>
+                )}
+                {emp.permit_expiry_month && emp.permit_expiry_year && (
+                  <Cell label="Permit Expiry">
+                    {MONTHS[emp.permit_expiry_month - 1]} {emp.permit_expiry_year}
+                  </Cell>
+                )}
+                <Cell label="Availability Days">
+                  {parseAvailabilityDays(emp.availability_days).length
+                    ? parseAvailabilityDays(emp.availability_days).join(", ")
+                    : "—"}
                 </Cell>
                 <Cell label="Shift Preference">
                   <span className="chip" style={{ background: C.purpleBg, borderColor: C.purpleBorder, color: C.purpleText }}>
@@ -2100,6 +2132,18 @@ const handleJobDecision = useCallback(
                 />
 
                 {/* ── LICENSE DOCUMENT ── (only relevant when a license is required for this role) */}
+                <DocCard
+                  icon={<FileText size={20} color={emp.permit_document_url ? C.red : C.textHint} />}
+                  title="Permit Document"
+                  subtitle={emp.permit_document_url
+                    ? (emp.permit_document_url.split("/").pop()?.split("?")[0] ?? "Permit.pdf")
+                    : "No permit document uploaded"}
+                  docUrl={emp.permit_document_url}
+                  badge={emp.permit_document_url ? "Available" : undefined}
+                  badgeColor={emp.permit_document_url ? { bg: C.successBg, border: C.successBorder, color: C.successText } : undefined}
+                />
+
+                {/* ── LICENSE DOCUMENT ── (only relevant when a license is required for this role) */}
                 {emp.license_required && (
                   <DocCard
                     icon={<IdCard size={20} color={emp.license_url ? C.red : C.textHint} />}
@@ -2125,22 +2169,7 @@ const handleJobDecision = useCallback(
                   />
                 )}
 
-                <DocCard
-                  icon={<IdCard size={20} color={C.textHint} />}
-                  title="ID Verification"
-                  subtitle="Government-issued photo ID"
-                  docUrl={null}
-                  badge="Pending"
-                  badgeColor={{ bg: C.pendingBg, border: C.pendingBorder, color: C.pendingText }}
-                />
-                <DocCard
-                  icon={<ShieldCheck size={20} color={C.textHint} />}
-                  title="Work Permit"
-                  subtitle="Immigration / work authorization document"
-                  docUrl={null}
-                  badge="Pending"
-                  badgeColor={{ bg: C.pendingBg, border: C.pendingBorder, color: C.pendingText }}
-                />
+             
               </div>
             </motion.div>
 
