@@ -110,10 +110,12 @@ interface Employee {
   available_from: string;
   permit_status: string;
   shift_preference: string;
-  license_required: boolean;
+ license_required: boolean;
   license_expiry_month: number | null;
   license_expiry_year: number | null;
   resume_url: string;
+  license_url: string;
+  permit_document_url: string;
   created_at: string;
   updated_at: string;
   job_categories: { id: string; name: string };
@@ -230,9 +232,11 @@ const mapGroupMemberToEmployee = (m: any): Employee => {
     permit_status: c.permit_status || "",
     shift_preference: c.shift_preference || "",
     license_required: !!c.license_required,
-    license_expiry_month: c.license_expiry_month ?? null,
+   license_expiry_month: c.license_expiry_month ?? null,
     license_expiry_year: c.license_expiry_year ?? null,
     resume_url: c.resume_url || "",
+    license_url: c.license_url || "",
+    permit_document_url: c.permit_document_url || "",
     created_at: c.created_at || m?.assigned_at || "",
     updated_at: c.updated_at || "",
     job_categories: c.job_categories || { id: "", name: "" },
@@ -270,9 +274,11 @@ const mapCandidateToEmployee = (c: any): Employee => ({
   permit_status: c.permit_status || "",
   shift_preference: c.shift_preference || "",
   license_required: !!c.license_required,
-  license_expiry_month: c.license_expiry_month ?? null,
+ license_expiry_month: c.license_expiry_month ?? null,
   license_expiry_year: c.license_expiry_year ?? null,
   resume_url: c.resume_url || "",
+  license_url: c.license_url || "",
+  permit_document_url: c.permit_document_url || "",
   created_at: c.created_at || "",
   updated_at: c.updated_at || "",
   job_categories: { id: c.job_category_id ?? "", name: "" },
@@ -1011,6 +1017,11 @@ export default function EmployeesPage() {
   const [groupFilter, setGroupFilter] = useState("all");
   const [provinceFilter, setProvinceFilter] = useState("all");
   const [cityFilter, setCityFilter] = useState("all");
+  // License Required — matches Employee.license_required (boolean)
+  const [licenseFilter, setLicenseFilter] = useState("all"); // "all" | "yes" | "no"
+  // Work Permit — "yes" matches permit_status === "open_work_permit" only,
+  // "no" matches every other permit_status value.
+  const [workPermitFilter, setWorkPermitFilter] = useState("all"); // "all" | "yes" | "no"
 
   // Filter options from APIs
   const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
@@ -1118,8 +1129,8 @@ export default function EmployeesPage() {
    * Fetches candidates from /employees/page-data (capped at
    * EMPLOYEES_FETCH_LIMIT so we don't drag the entire multi-thousand row
    * candidate table into the browser on every load). Gender, verification
-   * status, job category, province, city and search are all filtered
-   * locally below in `filteredEmployees`.
+   * status, job category, province, city, license, work permit and search
+   * are all filtered locally below in `filteredEmployees`.
    *
    * The Group filter is the one exception: it can't be checked client-side
    * because membership isn't part of the candidate record. Same as the
@@ -1182,6 +1193,18 @@ const res = await fetch(
       if (jobCategoryFilter !== "all" && String(emp.job_category_id) !== String(jobCategoryFilter)) {
         return false;
       }
+      // License Required — straightforward boolean match against emp.license_required
+      if (licenseFilter !== "all") {
+        const wantsLicense = licenseFilter === "yes";
+        if (!!emp.license_required !== wantsLicense) return false;
+      }
+      // Work Permit — "Yes" matches permit_status === "open_work_permit" exactly
+      // (case-insensitive, trimmed); "No" matches everything else.
+      if (workPermitFilter !== "all") {
+        const isOpenWorkPermit = (emp.permit_status || "").trim().toLowerCase() === "open_work_permit";
+        const wantsYes = workPermitFilter === "yes";
+        if (isOpenWorkPermit !== wantsYes) return false;
+      }
       // Partial, case-insensitive match — the dropdown guarantees a valid
       // province/city name, but the candidate's stored text can still have
       // extra whitespace or trailing qualifiers (e.g. "Surrey, BC"), so we
@@ -1204,7 +1227,7 @@ const res = await fetch(
       }
       return true;
     });
-  }, [employees, genderFilter, verificationFilter, jobCategoryFilter, provinceFilter, cityFilter, searchTerm]);
+  }, [employees, genderFilter, verificationFilter, jobCategoryFilter, provinceFilter, cityFilter, licenseFilter, workPermitFilter, searchTerm]);
 
   /* Keep the current page valid whenever the filtered result set changes size */
   useEffect(() => {
@@ -1349,6 +1372,8 @@ const rows = employeesToExport.map(e => ({
         "Campaign": e.campaigns?.name || "", "Verification Status": e.verification_status,
         "Available From": e.available_from, "Permit Status": e.permit_status,
         "Shift Preference": e.shift_preference, "License Required": e.license_required ? "Yes" : "No",
+        "Resume URL": e.resume_url || "", "License Document URL": e.license_url || "",
+        "Work Permit Document URL": e.permit_document_url || "",
         "Registered At": formatDate(e.created_at),
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
@@ -1401,11 +1426,14 @@ const rows = employeesToExport.map(e => ({
     setGroupFilter("all");
     setProvinceFilter("all");
     setCityFilter("all");
+    setLicenseFilter("all");
+    setWorkPermitFilter("all");
     setCurrentPage(1);
   };
 
   const hasActiveFilters = searchTerm || verificationFilter !== "all" || jobCategoryFilter !== "all" ||
-    genderFilter !== "all" || groupFilter !== "all" || provinceFilter !== "all" || cityFilter !== "all";
+    genderFilter !== "all" || groupFilter !== "all" || provinceFilter !== "all" || cityFilter !== "all" ||
+    licenseFilter !== "all" || workPermitFilter !== "all";
 
   return (
     <>
@@ -1453,7 +1481,7 @@ const rows = employeesToExport.map(e => ({
                 )}
               </div>
 
-              {/* Row 1: Search + Verification Status + Gender */}
+              {/* Row 1: Search + Verification Status + Gender + Job Category */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginBottom: "20px" }}>
 
                 {/* Search */}
@@ -1494,7 +1522,7 @@ const rows = employeesToExport.map(e => ({
 
               </div>
 
-              {/* Row 2: Group + Province + City */}
+              {/* Row 2: Group + Province + City + License Required + Work Permit */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
 
                 {/* Group */}
@@ -1537,6 +1565,28 @@ const rows = employeesToExport.map(e => ({
   {c.name}
 </option>
                   ))}
+                </SelectFilter>
+
+                {/* License Required — matches Employee.license_required boolean */}
+                <SelectFilter
+                  label="License Required"
+                  value={licenseFilter}
+                  onChange={v => { setLicenseFilter(v); setCurrentPage(1); }}
+                >
+                  <option value="all">All</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </SelectFilter>
+
+                {/* Work Permit — "Yes" matches permit_status === "open_work_permit" only */}
+                <SelectFilter
+                  label="Work Permit"
+                  value={workPermitFilter}
+                  onChange={v => { setWorkPermitFilter(v); setCurrentPage(1); }}
+                >
+                  <option value="all">All</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
                 </SelectFilter>
 
               </div>
