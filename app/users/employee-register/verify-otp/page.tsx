@@ -231,7 +231,7 @@ const handleVerify = async () => {
     const data = await res.json().catch(() => ({}));
 
     // TEMP DEBUG — show exactly what happened, right on screen
-    if (res.ok && data.jwtToken) {
+   if (res.ok && data.jwtToken) {
       localStorage.setItem("jbr_token_user", data.jwtToken);
       const check = localStorage.getItem("jbr_token_user");
       if (!check) {
@@ -239,7 +239,7 @@ const handleVerify = async () => {
         setIsLoading(false);
         return;
       }
-      router.push("/users");
+      router.push(data.is_registered ? "/users/profile" : "/users");
     } else {
       setErrorMsg(
         `DEBUG status=${res.status} ok=${res.ok} jwtPresent=${Boolean(data.jwtToken)} body=${JSON.stringify(data)}`
