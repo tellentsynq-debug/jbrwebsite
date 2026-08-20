@@ -208,15 +208,7 @@ function AuthGate({ reason }: { reason: "no_token" | "invalid_token" | "error" }
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
           </svg>
         </div>
-        <div style={{ display:"flex", alignItems:"stretch", border:`1.5px solid ${C.border}`, width:"fit-content", margin:"0 auto 24px" }}>
-          <div style={{ padding:"6px 8px 6px 12px", borderRight:`1.5px solid ${C.border}` }}>
-            <span style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:C.red, letterSpacing:3, lineHeight:1, display:"block" }}>JBR</span>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", justifyContent:"center", padding:"0 10px", gap:2 }}>
-            <span style={{ fontSize:8.5, letterSpacing:3.5, color:C.textHeading, textTransform:"uppercase", fontWeight:600 }}>STAFFING</span>
-            <span style={{ fontSize:8.5, letterSpacing:3.5, color:C.textMuted, textTransform:"uppercase" }}>SOLUTIONS</span>
-          </div>
-        </div>
+        <img src="/jbr_website_logo.jpeg" alt="JBR Staffing Solutions" style={{ height: "45px", width: "auto", margin: "0 auto 24px", display: "block", objectFit: "contain" }} />
         <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:26, fontWeight:600, color:C.textHeading, marginBottom:12 }}>{title}</h2>
         <p style={{ fontSize:14, color:C.textMuted, lineHeight:1.7 }}>{body}</p>
       </div>
@@ -965,19 +957,7 @@ const submit = async () => {
           {/* ── Left Brand Panel ── */}
           <div className="brand-panel" style={{flex:"0 0 380px",padding:"48px 6%",background:C.surface,overflowY:"auto",borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
             <div>
-              <div style={{display:"flex",alignItems:"stretch",border:`1.5px solid ${C.border}`,width:"fit-content",marginBottom:12}}>
-                <div style={{padding:"10px 12px 10px 16px",borderRight:`1.5px solid ${C.border}`}}>
-                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:34,fontWeight:600,color:C.red,letterSpacing:3,lineHeight:1,display:"block"}}>JBR</span>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"0 14px",gap:3}}>
-                  <span style={{fontSize:10,letterSpacing:4,color:C.textHeading,textTransform:"uppercase",fontWeight:600}}>STAFFING</span>
-                  <span style={{fontSize:10,letterSpacing:4,color:C.textMuted,textTransform:"uppercase"}}>SOLUTIONS</span>
-                </div>
-              </div>
-              <p style={{fontSize:10.5,color:C.textHint,letterSpacing:2.5,textTransform:"uppercase",display:"flex",alignItems:"center",gap:8,marginBottom:44}}>
-                <span style={{width:18,height:1,background:C.border,display:"inline-block"}}/>
-                Redefining People &amp; Culture
-              </p>
+              <img src="/jbr_website_logo.jpeg" alt="JBR Staffing Solutions" style={{ height: "60px", width: "auto", marginBottom: "12px", display: "block", objectFit: "contain" }} />
               <div style={{width:40,height:3,background:`linear-gradient(to right,${C.redBright},${C.red})`,borderRadius:2,marginBottom:28,animation:"lineGrow 1s cubic-bezier(0.4,0,0.2,1) 0.3s both"}}/>
               <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:38,fontWeight:400,color:C.textHeading,lineHeight:1.15,marginBottom:18}}>
                 Find your<br/><em style={{color:C.red,fontWeight:600}}>next role.</em>
