@@ -133,26 +133,11 @@ function Logo({ animate }: { animate?: boolean }) {
       marginBottom: "36px",
       animation: animate ? "scaleIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.1s both" : undefined,
     }}>
-      <div style={{
-        display: "flex", alignItems: "stretch", border: `1.5px solid ${C.border}`, position: "relative", overflow: "hidden",
-      }}>
-        <div style={{ padding: "8px 10px 8px 14px", borderRight: `1.5px solid ${C.border}` }}>
-          <span style={{
-            fontFamily: "'Cormorant Garamond', serif", fontSize: "34px", fontWeight: 600, color: C.red, letterSpacing: "3px", lineHeight: 1, display: "block",
-          }}>JBR</span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 12px", gap: "1px" }}>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "9.5px", letterSpacing: "4px", color: C.textHeading, textTransform: "uppercase" }}>STAFFING</span>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "9.5px", letterSpacing: "4px", color: C.textMuted, textTransform: "uppercase" }}>SOLUTIONS</span>
-        </div>
-      </div>
-      <div style={{
-        display: "flex", alignItems: "center", gap: "8px", fontSize: "9px", letterSpacing: "2.5px", color: C.textMuted, textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif",
-      }}>
-        <div style={{ width: "20px", height: "1px", background: C.border }} />
-        Redefining People &amp; Culture
-        <div style={{ width: "20px", height: "1px", background: C.border }} />
-      </div>
+      <img 
+        src="/jbr_website_logo.jpeg" 
+        alt="JBR Staffing Solutions" 
+        style={{ width: "100%", maxWidth: "180px", height: "auto" }}
+      />
     </div>
   );
 }

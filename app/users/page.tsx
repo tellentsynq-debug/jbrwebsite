@@ -516,8 +516,9 @@ async function submitToAPI(
   const shiftObj = SHIFT_TYPES.find(s => s.label === form.shiftType);
   const shiftValue = shiftObj?.value ?? form.shiftType;
 
-  // Only Canadian Citizens are exempt from the work permit + forklift license documents.
-  const requiresPermitDocs = form.permitStatus !== "citizen";
+  const requiresPermitDocs = form.permitStatus !== "";
+  const catNameLC = form.jobCategoryName.trim().toLowerCase();
+  const requiresLicenseDocs = !(catNameLC === "general labor" || catNameLC === "general labour");
 
   const FULL_DAY_NAMES: Record<string,string> = {
   Mon: "Monday",
@@ -547,14 +548,14 @@ const payload = {
     available_from:       form.startDate,
     permit_status:        form.permitStatus,
     permit_note:          form.permitStatus === "other" ? form.permitNote : null,
-    permit_expiry_month:  requiresPermitDocs ? parseInt(form.permitExpiryMonth) : null,
-    permit_expiry_year:   requiresPermitDocs ? parseInt(form.permitExpiryYear)  : null,
+    permit_expiry_month:  requiresPermitDocs && form.permitExpiryMonth ? parseInt(form.permitExpiryMonth) : null,
+    permit_expiry_year:   requiresPermitDocs && form.permitExpiryYear ? parseInt(form.permitExpiryYear)  : null,
     permit_document_url:  requiresPermitDocs && form.permitFile ? `https://storage.jbrstaffingsolutions.com/permits/${form.permitFile.name}` : null,
     shift_preference:     shiftValue,
-    license_required:     requiresPermitDocs,
-    license_expiry_month: requiresPermitDocs ? parseInt(form.licenseExpiryMonth) : null,
-    license_expiry_year:  requiresPermitDocs ? parseInt(form.licenseExpiryYear)  : null,
-    license_document_url: requiresPermitDocs ? licenseUrl : null,
+    license_required:     requiresLicenseDocs,
+    license_expiry_month: requiresLicenseDocs && form.licenseExpiryMonth ? parseInt(form.licenseExpiryMonth) : null,
+    license_expiry_year:  requiresLicenseDocs && form.licenseExpiryYear ? parseInt(form.licenseExpiryYear)  : null,
+    license_document_url: requiresLicenseDocs ? licenseUrl : null,
     resume_url:           resumeUrl,
     availability_days:    form.availability.map(d => FULL_DAY_NAMES[d] ?? d),
 };
@@ -773,23 +774,25 @@ export default function RegistrationPage() {
     clrErr("cityId");
   };
 
-  // Only Canadian Citizens skip the work permit + forklift license documents.
-  const requiresPermitDocs = form.permitStatus !== "" && form.permitStatus !== "citizen";
-  const permitNoExtras     = form.permitStatus === "citizen";
+  // Everyone requires a permit document (passport, PR card, etc)
+  const requiresPermitDocs = form.permitStatus !== "";
+  const permitRequiresExpiry = form.permitStatus !== "citizen";
+  const catNameLC = form.jobCategoryName.trim().toLowerCase();
+  const requiresLicenseDocs = !(catNameLC === "general labor" || catNameLC === "general labour");
 
   const handlePermitStatusChange = (v: string) => {
     setForm(f => {
-      const needsDocs = v !== "citizen";
+      const needsExpiry = v !== "citizen";
       return {
         ...f,
         permitStatus: v,
         permitNote: v === "other" ? f.permitNote : "",
-        permitExpiryMonth: needsDocs ? f.permitExpiryMonth : "",
-        permitExpiryYear:  needsDocs ? f.permitExpiryYear  : "",
-        permitFile:        needsDocs ? f.permitFile        : null,
-        licenseExpiryMonth: needsDocs ? f.licenseExpiryMonth : "",
-        licenseExpiryYear:  needsDocs ? f.licenseExpiryYear  : "",
-        licenseFile:        needsDocs ? f.licenseFile        : null,
+        permitExpiryMonth: needsExpiry ? f.permitExpiryMonth : "",
+        permitExpiryYear:  needsExpiry ? f.permitExpiryYear  : "",
+        permitFile:        f.permitFile,
+        licenseExpiryMonth: f.licenseExpiryMonth,
+        licenseExpiryYear:  f.licenseExpiryYear,
+        licenseFile:        f.licenseFile,
       };
     });
     clrErr("permitStatus"); clrErr("permitNote");
@@ -838,17 +841,26 @@ export default function RegistrationPage() {
         e.permitNote = "Please describe your status";
       }
 
-      const needsDocs = form.permitStatus !== "" && form.permitStatus !== "citizen";
-      if (needsDocs) {
+      const needsPermitDocs = form.permitStatus !== "";
+      const needsPermitExpiry = form.permitStatus !== "citizen";
+      const catLC = form.jobCategoryName.trim().toLowerCase();
+      const needsLicenseDocs = !(catLC === "general labor" || catLC === "general labour");
+
+      if (needsPermitDocs) {
+        if (!form.permitFile) e.permitFile = "Please upload your document";
+      }
+
+      if (needsPermitExpiry) {
         if (!form.permitExpiryMonth) e.permitExpiryMonth = "Required";
         if (!form.permitExpiryYear) e.permitExpiryYear  = "Required";
         else if (+form.permitExpiryYear < new Date().getFullYear()) e.permitExpiryYear = "Must be future year";
-        if (!form.permitFile) e.permitFile = "Please upload your work permit / visa document";
+      }
 
+      if (needsLicenseDocs) {
         if (!form.licenseExpiryMonth) e.licenseExpiryMonth = "Required";
         if (!form.licenseExpiryYear) e.licenseExpiryYear  = "Required";
         else if (+form.licenseExpiryYear < new Date().getFullYear()) e.licenseExpiryYear = "Must be future year";
-        if (!form.licenseFile) e.licenseFile = "Please upload your forklift license";
+        if (!form.licenseFile) e.licenseFile = "Please upload your license";
       }
 
     } else if (step===5) {
@@ -868,8 +880,9 @@ const submit = async () => {
   setLoading(true);
   setSubmitError(null);
 
-  // Only Canadian Citizens are exempt from the work permit + forklift license documents.
-  const needsLicenseDoc = form.permitStatus !== "" && form.permitStatus !== "citizen";
+  // Only Canadian Citizens are exempt from the work permit.
+  const subCatLC = form.jobCategoryName.trim().toLowerCase();
+  const needsLicenseDoc = !(subCatLC === "general labor" || subCatLC === "general labour");
 
   try {
     // 1) Upload the resume to its dedicated endpoint first.
@@ -1069,21 +1082,24 @@ const submit = async () => {
 
                   {form.jobCategoryId && (() => {
                     const cat = allCategories.find(c => c.id === form.jobCategoryId);
-                    return cat ? (
-                      <div style={{padding:"12px 16px",borderRadius:10,background:cat.license_required ? C.redActiveBg : C.greenBg,border:`1px solid ${cat.license_required ? "rgba(198,40,40,0.2)" : "rgba(46,125,50,0.2)"}`,display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={cat.license_required ? C.red : C.green} strokeWidth="2">
-                          {cat.license_required
+                    if (!cat) return null;
+                    const catNameLC = cat.name.trim().toLowerCase();
+                    const isLicenseReq = !(catNameLC === "general labor" || catNameLC === "general labour");
+                    return (
+                      <div style={{padding:"12px 16px",borderRadius:10,background:isLicenseReq ? C.redActiveBg : C.greenBg,border:`1px solid ${isLicenseReq ? "rgba(198,40,40,0.2)" : "rgba(46,125,50,0.2)"}`,display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={isLicenseReq ? C.red : C.green} strokeWidth="2">
+                          {isLicenseReq
                             ? <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>
                             : <><polyline points="20 6 9 17 4 12"/></>
                           }
                         </svg>
-                        <span style={{fontSize:13,fontWeight:600,color:cat.license_required ? C.red : C.green}}>
-                          {cat.license_required
+                        <span style={{fontSize:13,fontWeight:600,color:isLicenseReq ? C.red : C.green}}>
+                          {isLicenseReq
                             ? "This role requires a valid license or certification — you'll set that up in Step 5."
                             : "No license or certification required for this role."}
                         </span>
                       </div>
-                    ) : null;
+                    );
                   })()}
                 </div>
               )}
@@ -1213,46 +1229,59 @@ const submit = async () => {
                     </FieldWrap>
                   )}
 
-                  {/* Citizen Banner — the only status exempt from document uploads */}
-                  {permitNoExtras && (
-                    <div style={{padding:"14px 18px",background:C.greenBg,border:`1px solid rgba(46,125,50,0.2)`,borderRadius:12,marginBottom:20,display:"flex",gap:10,alignItems:"center",animation:"fadeUp 0.25s ease"}}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      <span style={{fontSize:13,fontWeight:600,color:C.green}}>
-                        As a Canadian Citizen, no work permit or forklift license documents are required.
-                      </span>
-                    </div>
-                  )}
+                  {/* Document Upload section */}
+                  {requiresPermitDocs && (() => {
+                    let sectionTitle = "WORK PERMIT / VISA DOCUMENT";
+                    let sectionHint = "Upload a copy of your permit or visa and enter its expiry date.";
+                    
+                    if (form.permitStatus === "citizen") {
+                      sectionTitle = "PASSPORT";
+                      sectionHint = "Upload a copy of your passport.";
+                    } else if (form.permitStatus === "permanent_resident") {
+                      sectionTitle = "PR CARD";
+                      sectionHint = "Upload a copy of your PR card and enter its expiry date.";
+                    } else if (form.permitStatus === "student_coop") {
+                      sectionTitle = "STUDY PERMIT";
+                      sectionHint = "Upload a copy of your study permit and enter its expiry date.";
+                    }
 
-                  {/* Work Permit + Forklift License — required for every status except Citizen */}
-                  {requiresPermitDocs && (
+                    return (
+                      <>
+                        <div style={{padding:"20px",background:C.inputBg,border:`1.5px solid ${C.border}`,borderRadius:12,marginBottom:20,animation:"fadeUp 0.25s ease"}}>
+                          <p style={{fontSize:11,letterSpacing:1.8,textTransform:"uppercase",fontWeight:700,color:C.textLabel,marginBottom:6}}>{sectionTitle}</p>
+                          <p style={{fontSize:12,color:C.textMuted,marginBottom:16}}>{sectionHint}</p>
+
+                          <div style={{marginBottom:16}}>
+                            <FileField
+                              file={form.permitFile}
+                              error={errors.permitFile}
+                              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                              onSelect={f=>handleFileSelect("permitFile", f)}
+                              uploadHint="PDF, image, or Word · max 5 MB"
+                              compact
+                            />
+                          </div>
+
+                          {permitRequiresExpiry && (
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+                              <FieldWrap label="Month" error={errors.permitExpiryMonth}>
+                                <Select value={form.permitExpiryMonth} onChange={v=>{setForm(f=>({...f,permitExpiryMonth:v}));clrErr("permitExpiryMonth");}} options={monthOptions} placeholder="Month"/>
+                              </FieldWrap>
+                              <FieldWrap label="Year" error={errors.permitExpiryYear}>
+                                <Select value={form.permitExpiryYear} onChange={v=>{setForm(f=>({...f,permitExpiryYear:v}));clrErr("permitExpiryYear");}} options={licYearOptions} placeholder="Year"/>
+                              </FieldWrap>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  {/* License — required for all jobs except General Labor */}
+                  {requiresLicenseDocs && (
                     <>
                       <div style={{padding:"20px",background:C.inputBg,border:`1.5px solid ${C.border}`,borderRadius:12,marginBottom:20,animation:"fadeUp 0.25s ease"}}>
-                        <p style={{fontSize:11,letterSpacing:1.8,textTransform:"uppercase",fontWeight:700,color:C.textLabel,marginBottom:6}}>WORK PERMIT / VISA DOCUMENT</p>
-                        <p style={{fontSize:12,color:C.textMuted,marginBottom:16}}>Upload a copy of your permit or visa and enter its expiry date.</p>
-
-                        <div style={{marginBottom:16}}>
-                          <FileField
-                            file={form.permitFile}
-                            error={errors.permitFile}
-                            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                            onSelect={f=>handleFileSelect("permitFile", f)}
-                            uploadHint="PDF, image, or Word · max 5 MB"
-                            compact
-                          />
-                        </div>
-
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-                          <FieldWrap label="Month" error={errors.permitExpiryMonth}>
-                            <Select value={form.permitExpiryMonth} onChange={v=>{setForm(f=>({...f,permitExpiryMonth:v}));clrErr("permitExpiryMonth");}} options={monthOptions} placeholder="Month"/>
-                          </FieldWrap>
-                          <FieldWrap label="Year" error={errors.permitExpiryYear}>
-                            <Select value={form.permitExpiryYear} onChange={v=>{setForm(f=>({...f,permitExpiryYear:v}));clrErr("permitExpiryYear");}} options={licYearOptions} placeholder="Year"/>
-                          </FieldWrap>
-                        </div>
-                      </div>
-
-                      <div style={{padding:"20px",background:C.inputBg,border:`1.5px solid ${C.border}`,borderRadius:12,marginBottom:20,animation:"fadeUp 0.25s ease"}}>
-                        <p style={{fontSize:11,letterSpacing:1.8,textTransform:"uppercase",fontWeight:700,color:C.textLabel,marginBottom:6}}>FORKLIFT LICENSE</p>
+                        <p style={{fontSize:11,letterSpacing:1.8,textTransform:"uppercase",fontWeight:700,color:C.textLabel,marginBottom:6}}>LICENSE / CERTIFICATION</p>
                         <p style={{fontSize:12,color:C.textMuted,marginBottom:16}}>Upload a copy of your license or certification and enter its expiry date.</p>
 
                         <div style={{marginBottom:16}}>
@@ -1284,12 +1313,12 @@ const submit = async () => {
                       {([
                         ["Permit Status",    PERMIT_STATUSES.find(p=>p.value===form.permitStatus)?.label||""],
                         ...(form.permitStatus === 'other' && form.permitNote ? [["Status Note", form.permitNote] as [string,string]] : []),
-                        ...(requiresPermitDocs && form.permitFile ? [["Work Permit Doc", form.permitFile.name] as [string,string]] : []),
+                        ...(requiresPermitDocs && form.permitFile ? [["Status Document", form.permitFile.name] as [string,string]] : []),
                         ...(requiresPermitDocs && form.permitExpiryMonth && form.permitExpiryYear
                           ? [["Permit Expires", `${MONTHS[+form.permitExpiryMonth-1]} ${form.permitExpiryYear}`] as [string,string]]
                           : []),
-                        ...(requiresPermitDocs && form.licenseFile ? [["Forklift License Doc", form.licenseFile.name] as [string,string]] : []),
-                        ...(requiresPermitDocs && form.licenseExpiryMonth && form.licenseExpiryYear
+                        ...(requiresLicenseDocs && form.licenseFile ? [["License Doc", form.licenseFile.name] as [string,string]] : []),
+                        ...(requiresLicenseDocs && form.licenseExpiryMonth && form.licenseExpiryYear
                           ? [["License Expires", `${MONTHS[+form.licenseExpiryMonth-1]} ${form.licenseExpiryYear}`] as [string,string]]
                           : []),
                       ] as [string,string][]).map(([k,v])=>v&&(

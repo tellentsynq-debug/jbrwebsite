@@ -819,6 +819,9 @@ function EditModal({
     setForm(f => ({ ...f, [key]: val }));
   }
 
+  const catName = form.job_category_id ? categoryMap[form.job_category_id]?.trim().toLowerCase() : "";
+  const isGeneralLabor = catName === "general labor" || catName === "general labour";
+
   async function handleSave() {
     setSaving(true);
     setSaveError(null);
@@ -928,7 +931,16 @@ function EditModal({
                 </select>
               </Field>
               <Field label="Category">
-                <select className="form-select" value={form.job_category_id??""} onChange={e=>set("job_category_id",e.target.value||null)}>
+                <select className="form-select" value={form.job_category_id??""} onChange={e=>{
+                  const val = e.target.value || null;
+                  const cName = val ? categoryMap[val]?.trim().toLowerCase() : "";
+                  const isGL = cName === "general labor" || cName === "general labour";
+                  setForm(f => ({
+                    ...f,
+                    job_category_id: val,
+                    ...(isGL ? { license_required: false, license_expiry_month: null, license_expiry_year: null } : {})
+                  }));
+                }}>
                   <option value="">— Select —</option>
                   {Object.entries(categoryMap).map(([k,v])=>(
                     <option key={k} value={k}>{v}</option>
@@ -957,30 +969,32 @@ function EditModal({
             </div>
           </div>
 
-          <div>
-            <p style={{ fontSize:11, letterSpacing:1.6, textTransform:"uppercase", fontWeight:700, color:C.textLabel, marginBottom:14 }}>License</p>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-              <Field label="License Required">
-                <select className="form-select" value={form.license_required?"yes":"no"} onChange={e=>set("license_required",e.target.value==="yes")}>
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                </select>
-              </Field>
-              {form.license_required && (
-                <>
-                  <Field label="Expiry Month">
-                    <select className="form-select" value={form.license_expiry_month??""} onChange={e=>set("license_expiry_month",e.target.value?Number(e.target.value):null)}>
-                      <option value="">— Select —</option>
-                      {MONTHS.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Expiry Year">
-                    <input className="form-input" type="number" placeholder="e.g. 2027" value={form.license_expiry_year??""} onChange={e=>set("license_expiry_year",e.target.value?Number(e.target.value):null)}/>
-                  </Field>
-                </>
-              )}
+          {!isGeneralLabor && (
+            <div>
+              <p style={{ fontSize:11, letterSpacing:1.6, textTransform:"uppercase", fontWeight:700, color:C.textLabel, marginBottom:14 }}>License</p>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                <Field label="License Required">
+                  <select className="form-select" value={form.license_required?"yes":"no"} onChange={e=>set("license_required",e.target.value==="yes")}>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </Field>
+                {form.license_required && (
+                  <>
+                    <Field label="Expiry Month">
+                      <select className="form-select" value={form.license_expiry_month??""} onChange={e=>set("license_expiry_month",e.target.value?Number(e.target.value):null)}>
+                        <option value="">— Select —</option>
+                        {MONTHS.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Expiry Year">
+                      <input className="form-input" type="number" placeholder="e.g. 2027" value={form.license_expiry_year??""} onChange={e=>set("license_expiry_year",e.target.value?Number(e.target.value):null)}/>
+                    </Field>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {saveError && (
             <div style={{ padding:"12px 16px", borderRadius:9, background:"#FEE2E2", border:"1px solid #FECACA", display:"flex", gap:10, alignItems:"center" }}>
