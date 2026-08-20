@@ -390,7 +390,7 @@ function BrandPanel() {
             fontSize: "11px", letterSpacing: "3.5px", textTransform: "uppercase", color: C.textLabel, fontFamily: "'DM Sans',sans-serif", fontWeight: 600, marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px",
           }}>
             <div style={{ width: "20px", height: "1px", background: C.borderHover }} />
-            Est. 2015
+            Est. 2020
           </div>
           <h1 style={{
             fontFamily: "'Cormorant Garamond', serif", fontWeight: 400, fontSize: "46px", lineHeight: 1.1, color: C.textHeading, letterSpacing: "-0.5px", marginBottom: "8px",
