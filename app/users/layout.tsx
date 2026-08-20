@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     default: "JBR Staffing",
     template: "%s | JBR Staffing",
   },
-  description: "JBR Staffing - Connecting talent with opportunity",
+  description: "JBR Staffing Solutions - Connecting talent with opportunity",
 };
 
 export default function UsersLayout({
